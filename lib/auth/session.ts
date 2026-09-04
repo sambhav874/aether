@@ -1,22 +1,30 @@
 import "server-only";
 
+import { cache } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth/server";
 
-export async function getSession() {
+/**
+ * `cache()`-wrapped so the layout and the page it renders share one lookup
+ * instead of each paying their own round trip — the database is a long way
+ * from the functions, so duplicate auth calls are the single easiest thing
+ * to stop paying for. Deduped per request only; nothing is cached across
+ * requests.
+ */
+export const getSession = cache(async () => {
   return auth.api.getSession({ headers: await headers() });
-}
+});
 
-export async function requireSession() {
+export const requireSession = cache(async () => {
   const session = await getSession();
   if (!session) {
     redirect("/login");
   }
   return session;
-}
+});
 
-export async function requireActiveWorkspace() {
+export const requireActiveWorkspace = cache(async () => {
   const session = await requireSession();
   const headerList = await headers();
   const organizations = await auth.api.listOrganizations({
@@ -46,4 +54,4 @@ export async function requireActiveWorkspace() {
     workspaces: organizations,
     role: membership?.role ?? "viewer",
   };
-}
+});

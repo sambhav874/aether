@@ -127,7 +127,11 @@ export async function getAggregatedNews(
     feeds.map(async (feed) => {
       const response = await fetch(feed.url, {
         headers: { "User-Agent": USER_AGENT, Accept: "application/rss+xml, application/xml, text/xml" },
-        cache: "no-store",
+        // Was no-store, which made every dashboard/research view re-fetch
+        // every feed before anything could render — the dominant cost on
+        // the overview page. Headlines two minutes old are indistinguishable
+        // from live here, and a cache miss still streams in behind Suspense.
+        next: { revalidate: 120 },
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const xml = await response.text();

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { brokerAccounts } from "@/db/schema";
@@ -12,6 +13,7 @@ import type { AccountRow } from "@/components/overview/accounts-panel";
 import { WatchlistPanel } from "@/components/market/watchlist-panel";
 import { fetchWatchlist } from "@/lib/market/actions";
 import { SelectedSymbolProvider } from "@/components/market/selected-symbol-context";
+import { WatchlistSkeleton, HeadlinesSkeleton } from "@/components/dashboard/skeletons";
 import type { NewsArticle } from "@/lib/research/types";
 
 // News/watchlist must reflect the latest data on every visit, not a
@@ -41,10 +43,58 @@ function timeAgo(iso: string): string {
   return `${Math.round(hours / 24)}d ago`;
 }
 
+/**
+ * The two panels below are the slow half of this page — RSS feeds across a
+ * dozen hosts, and index quotes that can involve a live broker call. They
+ * used to be awaited in the same Promise.all as the (fast) position and
+ * account queries, so nothing rendered until the slowest feed answered.
+ * Split into their own Suspense boundaries: the shell paints on the
+ * database round trip alone and these stream in behind it.
+ */
+async function HeadlinesPanel() {
+  const customFeeds = await getActiveUserRssFeeds();
+  const news = await getAggregatedNews(undefined, customFeeds);
+
+  return (
+    <div className="h-[420px] space-y-2 overflow-y-auto rounded-lg border p-2">
+      {news.status === "ok" ? (
+        selectHeadlines(news.articles).map((article) => (
+          <a
+            key={article.id}
+            href={article.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block rounded-md p-2 text-xs transition-colors hover:bg-muted/50"
+          >
+            <p className="line-clamp-2 font-medium">{article.headline}</p>
+            <p className="mt-1 flex items-center gap-1.5 text-muted-foreground">
+              <span>
+                {article.source} · {timeAgo(article.publishedAt)}
+              </span>
+              {article.isCustom && (
+                <span className="rounded bg-muted px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-foreground">
+                  my feed
+                </span>
+              )}
+            </p>
+          </a>
+        ))
+      ) : (
+        <p className="p-2 text-xs text-muted-foreground">{news.reason}</p>
+      )}
+    </div>
+  );
+}
+
+async function WatchlistSection() {
+  const watchlist = await fetchWatchlist();
+  return <WatchlistPanel initial={watchlist} />;
+}
+
 export default async function OverviewPage() {
   const { workspace } = await requireActiveWorkspace();
 
-  const [forexPositions, optionsPositions, accountRows, news, watchlist] = await Promise.all([
+  const [forexPositions, optionsPositions, accountRows] = await Promise.all([
     getPositions(workspace.id, "forex"),
     getPositions(workspace.id, "indian_options"),
     db
@@ -57,8 +107,6 @@ export default async function OverviewPage() {
       })
       .from(brokerAccounts)
       .where(eq(brokerAccounts.workspaceId, workspace.id)),
-    getActiveUserRssFeeds().then((customFeeds) => getAggregatedNews(undefined, customFeeds)),
-    fetchWatchlist(),
   ]);
 
   const accounts: AccountRow[] = accountRows.map((row) => ({
@@ -73,7 +121,9 @@ export default async function OverviewPage() {
     <SelectedSymbolProvider>
     <div className="grid gap-4 xl:grid-cols-[320px_1fr_340px]">
       <aside className="h-full">
-        <WatchlistPanel initial={watchlist} />
+        <Suspense fallback={<WatchlistSkeleton />}>
+          <WatchlistSection />
+        </Suspense>
       </aside>
 
       <OverviewShell
@@ -104,33 +154,9 @@ export default async function OverviewPage() {
               View all
             </a>
           </div>
-          <div className="h-[420px] space-y-2 overflow-y-auto rounded-lg border p-2">
-            {news.status === "ok" ? (
-              selectHeadlines(news.articles).map((article) => (
-                <a
-                  key={article.id}
-                  href={article.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block rounded-md p-2 text-xs transition-colors hover:bg-muted/50"
-                >
-                  <p className="line-clamp-2 font-medium">{article.headline}</p>
-                  <p className="mt-1 flex items-center gap-1.5 text-muted-foreground">
-                    <span>
-                      {article.source} · {timeAgo(article.publishedAt)}
-                    </span>
-                    {article.isCustom && (
-                      <span className="rounded bg-muted px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-foreground">
-                        my feed
-                      </span>
-                    )}
-                  </p>
-                </a>
-              ))
-            ) : (
-              <p className="p-2 text-xs text-muted-foreground">{news.reason}</p>
-            )}
-          </div>
+          <Suspense fallback={<HeadlinesSkeleton />}>
+            <HeadlinesPanel />
+          </Suspense>
         </div>
       </aside>
     </div>
