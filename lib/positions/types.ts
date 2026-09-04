@@ -19,6 +19,11 @@ export type PositionRow = {
   strategyLabel: string | null;
   accountLabel: string;
   provider: string;
+  /** The denominating currency of the broker account this position sits on.
+   * Not a property of the market — one workspace can hold both INR- and
+   * USD-denominated MT5 accounts, so a per-market constant would mislabel
+   * real money. */
+  currency: "USD" | "INR";
   basketName: string | null;
   openedAt: Date;
   closedAt: Date | null;

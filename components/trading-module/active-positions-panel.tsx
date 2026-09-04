@@ -82,7 +82,10 @@ export function ActivePositionsPanel({
                 floatingPnl >= 0 ? "text-positive" : "text-negative",
               )}
             >
-              {formatMoney(floatingPnl, currency)}
+              {(() => {
+                const currencies = new Set(positions.map((p) => p.currency));
+                return currencies.size > 1 ? "mixed" : formatMoney(floatingPnl, [...currencies][0] ?? currency);
+              })()}
             </span>
           </span>
           <span className="text-muted-foreground">
@@ -148,7 +151,7 @@ export function ActivePositionsPanel({
                     (position.pnl ?? 0) >= 0 ? "text-positive" : "text-negative",
                   )}
                 >
-                  {formatMoney(position.pnl, currency)}
+                  {formatMoney(position.pnl, position.currency)}
                 </td>
               </tr>
             ))}

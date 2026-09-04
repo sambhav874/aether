@@ -286,7 +286,13 @@ export function PositionsTable({
                         subtotal >= 0 ? "text-positive" : "text-negative",
                       )}
                     >
-                      {formatMoney(subtotal, currency)}
+                      {(() => {
+                        // Summing across currencies would be arithmetic on
+                        // incomparable numbers — show the split instead.
+                        const groupCurrencies = new Set(group.map((p) => p.currency));
+                        if (groupCurrencies.size > 1) return "mixed currencies";
+                        return formatMoney(subtotal, group[0]?.currency ?? currency);
+                      })()}
                     </span>
                   </td>
                 </tr>
@@ -336,7 +342,7 @@ export function PositionsTable({
                               (position.pnl ?? 0) >= 0 ? "text-positive" : "text-negative",
                             )}
                           >
-                            {formatMoney(position.pnl, currency)}
+                            {formatMoney(position.pnl, position.currency)}
                           </td>
                         )}
                         {visibleColumns["Points"] && (

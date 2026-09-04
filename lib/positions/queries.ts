@@ -29,6 +29,7 @@ function baseQuery() {
       closedAt: positions.closedAt,
       accountLabel: brokerAccounts.label,
       provider: brokerAccounts.provider,
+      accountCurrency: brokerAccounts.currency,
       // Scalar subquery, not a join — a position can in principle belong to
       // more than one basket, and a join would silently duplicate the row.
       // Picks the most recently-added basket link deterministically.
@@ -65,6 +66,7 @@ function toPositionRow(row: Awaited<ReturnType<typeof baseQuery>>[number]): Posi
     strategyLabel: row.strategyName,
     accountLabel: row.accountLabel,
     provider: row.provider,
+    currency: row.accountCurrency === "INR" ? "INR" : "USD",
     basketName: row.basketName,
     openedAt: row.openedAt,
     closedAt: row.closedAt,
@@ -117,6 +119,36 @@ export async function getPositionsByStrategy(strategyId: string, limit = 20): Pr
 
 function isToday(date: Date) {
   return date.toDateString() === new Date().toDateString();
+}
+
+/**
+ * Which currency a page's figures are in, taken from the positions
+ * themselves rather than assumed from the market. A workspace can hold
+ * accounts in more than one currency on the same market, and summing across
+ * them would be arithmetic on incomparable numbers — so the aggregate is
+ * computed over the dominant currency only and the caller is told what it
+ * left out. Per-row amounts always use the row's own currency.
+ */
+export function resolveCurrency(
+  rows: PositionRow[],
+  fallback: "USD" | "INR",
+): { currency: "USD" | "INR"; totalsRows: PositionRow[]; excluded: { count: number; currencies: ("USD" | "INR")[] } } {
+  if (rows.length === 0) {
+    return { currency: fallback, totalsRows: rows, excluded: { count: 0, currencies: [] } };
+  }
+
+  const counts = new Map<"USD" | "INR", number>();
+  for (const row of rows) counts.set(row.currency, (counts.get(row.currency) ?? 0) + 1);
+
+  const [currency] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+  const totalsRows = rows.filter((r) => r.currency === currency);
+  const others = [...counts.keys()].filter((c) => c !== currency);
+
+  return {
+    currency,
+    totalsRows,
+    excluded: { count: rows.length - totalsRows.length, currencies: others },
+  };
 }
 
 export function computeKpis(rows: PositionRow[]): PositionKpis {

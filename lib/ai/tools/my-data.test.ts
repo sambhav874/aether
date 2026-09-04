@@ -20,6 +20,7 @@ function position(overrides: Partial<PositionRow>): PositionRow {
     accountId: "acct_1",
     strategyId: "strat_1",
     market: "indian_equity",
+    currency: "INR",
     symbol: "TCS",
     side: "long",
     entryPrice: 100,

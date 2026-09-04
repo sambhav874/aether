@@ -46,6 +46,7 @@ export function TradingModulePage({
   title,
   subtitle,
   currency,
+  excludedFromTotals,
   kpis,
   pnlPoints,
   positions,
@@ -58,6 +59,10 @@ export function TradingModulePage({
   title: string;
   subtitle: string;
   currency: "USD" | "INR";
+  /** Positions on this page denominated in some other currency. They still
+   * appear in the table in their own currency, but are kept out of the
+   * totals above it — adding them would be arithmetic across currencies. */
+  excludedFromTotals?: { count: number; currencies: ("USD" | "INR")[] };
   kpis: PositionKpis;
   pnlPoints: PnlPoint[];
   positions: PositionRow[];
@@ -155,6 +160,15 @@ export function TradingModulePage({
         initial={appearanceMotion === "reduced" ? undefined : "hidden"}
         animate={appearanceMotion === "reduced" ? undefined : "show"}
       >
+        {excludedFromTotals && excludedFromTotals.count > 0 && (
+          <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
+            Totals below cover {currency} positions only — {excludedFromTotals.count}{" "}
+            {excludedFromTotals.count === 1 ? "position" : "positions"} in{" "}
+            {excludedFromTotals.currencies.join(", ")} {excludedFromTotals.count === 1 ? "is" : "are"} listed in the
+            table but excluded, since summing across currencies would be meaningless.
+          </p>
+        )}
+
         <HeroPnlCard
           realizedPnl={kpis.realizedPnl}
           unrealizedPnl={kpis.unrealizedPnl}

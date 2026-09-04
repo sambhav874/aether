@@ -5,6 +5,7 @@ import {
   computeKpis,
   computePnlPoints,
   getIndianBrokerBalance,
+  resolveCurrency,
 } from "@/lib/positions/queries";
 import { getTradingSettings, saveTradingSettings, closePositions } from "@/lib/positions/actions";
 
@@ -17,14 +18,17 @@ export default async function IndianOptionsPage() {
     getIndianBrokerBalance(workspace.id),
   ]);
 
+  const { currency, totalsRows, excluded } = resolveCurrency(positions, "INR");
+
   return (
     <TradingModulePage
       market="indian_options"
       title="Indian Options"
       subtitle="NSE F&O monitoring across connected Zerodha, Dhan, and Motilal Oswal accounts."
-      currency="INR"
-      kpis={computeKpis(positions)}
-      pnlPoints={computePnlPoints(positions)}
+      currency={currency}
+      excludedFromTotals={excluded}
+      kpis={computeKpis(totalsRows)}
+      pnlPoints={computePnlPoints(totalsRows)}
       positions={positions}
       settings={settings}
       saveSettingsAction={saveTradingSettings.bind(null, "indian_options")}
