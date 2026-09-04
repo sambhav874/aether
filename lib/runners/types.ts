@@ -115,6 +115,19 @@ export type ConnectResult = {
 export interface BrokerRunner {
   readonly provider: BrokerProvider;
 
+  /**
+   * Whether `getPositions()` returns *every* open position for an account,
+   * so a position's absence from that list is proof it is no longer open.
+   * Only then may the sync job close local rows the broker stopped
+   * reporting (lib/runners/sync.ts).
+   *
+   * Defaults to false, which is the safe answer: Motilal's /getposition has
+   * no verified delivery-holdings endpoint, so an absent row there may just
+   * be a gap in the feed rather than a closed position. An adapter must
+   * opt in deliberately, having checked its own API's guarantees.
+   */
+  readonly reportsAllOpenPositions?: boolean;
+
   connectAccount(credentials: Record<string, string>): Promise<ConnectResult>;
 
   /**

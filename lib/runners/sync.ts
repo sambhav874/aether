@@ -1,8 +1,9 @@
 import "server-only";
-import { eq, isNotNull, and, ne } from "drizzle-orm";
+import { eq, isNotNull, and, ne, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { brokerAccounts, positions } from "@/db/schema";
 import { getRunner } from "@/lib/runners";
+import { stalePositionIds } from "@/lib/runners/reconcile";
 
 export type SyncSummary = {
   total: number;
@@ -19,12 +20,17 @@ export type SyncSummary = {
  * fills in holdings that exist at the broker but not in our DB (bought
  * outside the app, or before the account was connected).
  *
- * Deliberately additive-only — it does NOT close rows the broker stops
- * reporting. Some feeds are incomplete (Motilal's /getposition has no
- * verified delivery-holdings endpoint, see lib/runners/motilal/index.ts),
- * so treating "missing from this response" as "closed" risks wrongly
- * closing a real open position. Actual closes still go through
- * closePosition / the strategy engine.
+ * Additive for every adapter, plus a reconciliation pass for the ones that
+ * declare `reportsAllOpenPositions`. Where a feed is only partial (Motilal's
+ * /getposition has no verified delivery-holdings endpoint, see
+ * lib/runners/motilal/index.ts), "missing from this response" still means
+ * nothing and no row is ever closed from it. Where the feed is complete
+ * (MT5), a local row the broker no longer reports is genuinely closed, and
+ * leaving it open forever makes exposure, KPIs and the engine's
+ * concurrency checks operate on a position that does not exist.
+ *
+ * Actual closes still go through closePosition / the strategy engine; this
+ * pass only catches positions that were closed outside the app.
  */
 export async function syncPositions(
   accountId: string,
@@ -65,6 +71,45 @@ export async function syncPositions(
         },
       });
   }
+
+  // Only adapters that guarantee a complete feed get here — see the
+  // `reportsAllOpenPositions` note on BrokerRunner. Reaching this line also
+  // means getPositions() resolved, so an empty list is a real "nothing
+  // open", not a failed call (a throw propagates to the caller instead).
+  if (!runner.reportsAllOpenPositions) return;
+
+  const localOpen = await db
+    .select({
+      id: positions.id,
+      externalPositionId: positions.externalPositionId,
+      isPaper: positions.isPaper,
+      openedAt: positions.openedAt,
+    })
+    .from(positions)
+    .where(and(eq(positions.accountId, accountId), eq(positions.status, "open")));
+
+  const staleIds = stalePositionIds(
+    localOpen,
+    live.map((p) => p.externalPositionId).filter((id): id is string => Boolean(id)),
+    new Date(),
+  );
+  if (staleIds.length === 0) return;
+
+  await db
+    .update(positions)
+    .set({
+      status: "closed",
+      closeReason: "reconciled_missing",
+      closedAt: new Date(),
+      // The true exit price and realised P&L are unknowable here — the
+      // stored pnl was an unrealised snapshot, and presenting it as a
+      // realised result would be a fabrication. Same rule the manual-close
+      // path already follows: leave them null for a later source of truth.
+      exitPrice: null,
+      pnl: null,
+      updatedAt: new Date(),
+    })
+    .where(inArray(positions.id, staleIds));
 }
 
 /**

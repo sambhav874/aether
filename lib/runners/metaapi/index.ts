@@ -26,6 +26,13 @@ function getClient(): MetaApi {
 export const metaapiRunner: BrokerRunner = {
   provider: "metaapi",
 
+  // MT5's positions endpoint returns the account's complete open-position
+  // set — verified against a live account whose only position had been
+  // closed: the endpoint returned [] while account-information still
+  // reported the account fine (margin 0, equity == balance). So an absent
+  // position here really is a closed one.
+  reportsAllOpenPositions: true,
+
   async connectAccount(credentials): Promise<ConnectResult> {
     const { login, password, server, name } = credentials;
     const api = getClient();
