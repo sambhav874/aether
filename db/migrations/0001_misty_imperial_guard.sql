@@ -1,0 +1,1 @@
+ALTER TABLE "broker_accounts" ADD COLUMN "metadata" jsonb;

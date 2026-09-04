@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1200, height=1200" />
+    <title>Aether Signal Router</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      :root { --paper: #0d0d0d; --ink: #f3f1ed; --muted: rgba(243,241,237,.58); --line: rgba(243,241,237,.18); --red: #c8102e; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; width: 1200px; height: 1200px; overflow: hidden; background: var(--paper); color: var(--ink); }
+      body { font-family: Inter, sans-serif; }
+      #router-composition { position: relative; width: 1200px; height: 1200px; overflow: hidden; background: var(--paper); }
+      .clip { position: absolute; inset: 0; overflow: hidden; }
+      .grid { position: absolute; inset: 0; opacity: .35; background-image: linear-gradient(to right, rgba(243,241,237,.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(243,241,237,.08) 1px, transparent 1px); background-size: 8.333% 100%, 100% 8.333%; }
+      .header { position: absolute; top: 130px; left: 134px; display: flex; align-items: center; gap: 16px; font: 16px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .24em; color: var(--muted); text-transform: uppercase; }
+      .header i { display: block; width: 12px; height: 12px; border-radius: 50%; background: var(--red); }
+      .stage { position: absolute; top: 240px; left: 120px; width: 960px; height: 700px; border: 1px solid rgba(243,241,237,.3); background: linear-gradient(145deg, rgba(26,26,26,.96), rgba(13,13,13,.96)); box-shadow: 34px 42px 0 rgba(200,16,46,.92), inset 0 0 0 10px rgba(243,241,237,.04); transform: rotateX(12deg) rotateY(-13deg) rotateZ(-4deg); transform-style: preserve-3d; }
+      .stage .ring { position: absolute; border: 1px solid var(--line); border-radius: 50%; transform: rotateX(64deg) rotateZ(-18deg); }
+      .ring.outer { inset: 8%; }
+      .ring.inner { inset: 25%; border-color: rgba(200,16,46,.5); }
+      .paths { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+      .path { fill: none; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+      .path.ghost { stroke: rgba(243,241,237,.25); stroke-width: 1.5; opacity: .55; }
+      .path.active { stroke: var(--red); stroke-width: 3; filter: drop-shadow(0 0 8px rgba(200,16,46,.55)); }
+      .node { position: absolute; z-index: 3; display: flex; align-items: center; gap: 14px; font: 13px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; letter-spacing: .08em; }
+      .node b, .node small { display: block; }
+      .node b { font-weight: 500; }
+      .node small { margin-top: 7px; font-size: 11px; color: var(--muted); }
+      .node-mark { display: grid; width: 48px; height: 48px; place-items: center; border: 1px solid #ff8a9c; color: #ff8a9c; }
+      #hf-router-input { top: 124px; left: 72px; }
+      #hf-router-guard { top: 196px; left: 378px; }
+      #hf-router-position { left: 52%; right: auto; bottom: 118px; }
+      .desk { position: absolute; z-index: 2; top: 270px; left: 260px; width: 440px; border: 1px solid rgba(243,241,237,.7); background: rgba(17,17,17,.97); box-shadow: 18px 20px 0 rgba(0,0,0,.26); transform: translateZ(32px); }
+      .desk-top, .desk-bottom { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; font: 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .16em; color: var(--muted); }
+      .desk-top { border-bottom: 1px solid rgba(243,241,237,.16); }
+      .live { color: #ff8a9c; }
+      .live i { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--red); }
+      .desk-main { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid rgba(243,241,237,.16); }
+      .desk-main div { padding: 24px 18px; border-right: 1px solid rgba(243,241,237,.16); }
+      .desk-main div:last-child { border-right: 0; }
+      .desk-main span { display: block; font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .16em; color: rgba(243,241,237,.68); }
+      .desk-main strong { display: block; margin-top: 16px; font-size: 24px; font-weight: 400; letter-spacing: -.04em; }
+      .desk-main .red { color: #ff8a9c; }
+      .desk-bottom { justify-content: flex-start; gap: 24px; font-size: 10px; letter-spacing: .06em; }
+      .broker { position: absolute; z-index: 3; display: flex; align-items: center; gap: 10px; min-width: 132px; padding: 12px; border: 1px solid var(--line); background: rgba(13,13,13,.9); font: 12px/1.15 ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; }
+      .broker b, .broker small { display: block; }
+      .broker small { margin-top: 6px; color: var(--muted); font-size: 10px; }
+      .broker:before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--red); }
+      #hf-broker-mt5 { right: 46px; top: 352px; }
+      #hf-broker-dhan { right: 46px; top: 452px; }
+      #hf-broker-nse { right: 46px; top: 552px; }
+      #hf-broker-nse:before { background: var(--ink); }
+      .axis { position: absolute; font: 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .22em; text-transform: uppercase; color: var(--muted); }
+      .axis.top { top: 80px; right: 70px; }
+      .axis.bottom { right: 70px; bottom: 38px; }
+      .caption { position: absolute; bottom: 84px; left: 132px; width: 420px; border-left: 3px solid var(--red); padding-left: 18px; }
+      .caption span { display: block; font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .14em; color: var(--muted); text-transform: uppercase; }
+      .caption p { margin: 14px 0 0; font-size: 22px; line-height: 1.35; }
+    </style>
+  </head>
+  <body>
+    <div id="router-composition" data-composition-id="aether-signal-router" data-start="0" data-width="1200" data-height="1200" data-duration="7">
+      <section id="router-scene" class="clip" data-start="0" data-duration="7" data-track-index="1">
+        <div class="grid" id="hf-router-grid" aria-hidden="true"></div>
+        <div class="header" id="hf-router-header"><i></i>AETHER / MONARCH / ROUTER</div>
+        <div class="stage" id="hf-router-stage" data-layout-allow-overflow="true">
+          <div class="ring outer" id="hf-router-ring-outer"></div>
+          <div class="ring inner" id="hf-router-ring-inner"></div>
+          <svg class="paths" id="hf-router-paths" viewBox="0 0 960 700" aria-hidden="true">
+            <path class="path ghost" d="M66 162 C 218 162 260 290 450 320 S 694 250 910 150" />
+            <path class="path ghost" d="M88 560 C 240 476 310 382 520 376 S 734 456 900 570" />
+            <path class="path active" id="hf-router-path-active" d="M88 162 C 242 162 302 284 482 326 S 710 432 910 562" />
+          </svg>
+          <div class="node" id="hf-router-input"><span class="node-mark">⌁</span><span><b>01 / signal</b><small>TradingView / webhook</small></span></div>
+          <div class="node" id="hf-router-guard"><span class="node-mark">✓</span><span><b>02 / guard</b><small>risk rules passed</small></span></div>
+          <div class="desk" id="hf-router-desk"><div class="desk-top"><span>MONARCH / ROUTER</span><span class="live"><i></i>LIVE</span></div><div class="desk-main"><div><span>SYMBOL</span><strong>NIFTY 50</strong></div><div><span>ACTION</span><strong class="red">BUY</strong></div><div><span>RISK</span><strong>0.42%</strong></div></div><div class="desk-bottom"><span>✓ Cooldown clear</span><span>⌑ Workspace verified</span></div></div>
+          <div class="broker" id="hf-broker-mt5"><span><b>MT5</b><small>Forex</small></span></div>
+          <div class="broker" id="hf-broker-dhan"><span><b>DHAN</b><small>Options</small></span></div>
+          <div class="broker" id="hf-broker-nse"><span><b>NSE</b><small>Equity</small></span></div>
+          <div class="node" id="hf-router-position"><span class="node-mark">↗</span><span><b>04 / position</b><small>order attached to signal</small></span></div>
+          <div class="axis top">controlled execution</div>
+          <div class="axis bottom">one operating picture</div>
+        </div>
+        <div class="caption" id="hf-router-caption"><span>Signal → Risk → Broker → Position</span><p>From alert to position, every handoff stays visible.</p></div>
+      </section>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      const activePath = document.querySelector("#hf-router-path-active");
+      const pathLength = activePath.getTotalLength();
+      const tl = gsap.timeline({ paused: true });
+      tl.set(activePath, { strokeDasharray: pathLength, strokeDashoffset: pathLength }, 0)
+        .from("#hf-router-header", { opacity: 0, y: 22, duration: 0.5, ease: "power3.out" }, 0.1)
+        .from("#hf-router-stage", { opacity: 0, scale: 0.92, rotationZ: -7, duration: 1.1, ease: "power3.out" }, 0.2)
+        .from("#hf-router-input", { opacity: 0, x: -26, duration: 0.55, ease: "power3.out" }, 0.75)
+        .from("#hf-router-guard", { opacity: 0, y: 24, duration: 0.55, ease: "power3.out" }, 1.45)
+        .from("#hf-router-desk", { opacity: 0, y: 24, scale: 0.96, duration: 0.65, ease: "power3.out" }, 2.05)
+        .to(activePath, { strokeDashoffset: 0, duration: 1.8, ease: "power2.inOut" }, 2.25)
+        .from(["#hf-broker-mt5", "#hf-broker-dhan", "#hf-broker-nse"], { opacity: 0, x: 22, duration: 0.5, stagger: 0.18, ease: "power3.out" }, 3.15)
+        .from("#hf-router-position", { opacity: 0, x: 24, duration: 0.6, ease: "power3.out" }, 4.15)
+        .from("#hf-router-caption", { opacity: 0, y: 20, duration: 0.6, ease: "power3.out" }, 4.65)
+        .to("#hf-router-ring-outer", { rotationZ: 16, duration: 2.2, ease: "sine.inOut", yoyo: true, repeat: 2 }, 0)
+        .to("#hf-router-ring-inner", { rotationZ: -16, duration: 1.9, ease: "sine.inOut", yoyo: true, repeat: 2 }, 0.4)
+        .to("#hf-router-desk", { y: -9, rotationZ: 1.5, duration: 0.8, ease: "sine.inOut", yoyo: true, repeat: 2 }, 4.55);
+      window.__timelines["aether-signal-router"] = tl;
+    </script>
+  </body>
+</html>

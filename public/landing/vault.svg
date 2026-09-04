@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" fill="none">
+  <defs>
+    <linearGradient id="vg" x1="120" y1="80" x2="480" y2="520" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ae9357" />
+      <stop offset="0.4" stop-color="#fff0cc" />
+      <stop offset="0.7" stop-color="#ae9357" />
+      <stop offset="1" stop-color="#bd9d4f" stop-opacity="0.15" />
+    </linearGradient>
+    <radialGradient id="vr" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#cc9166" stop-opacity="0.22" />
+      <stop offset="1" stop-color="#08080a" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <circle cx="300" cy="300" r="290" fill="url(#vr)" />
+  <g stroke="url(#vg)" fill="none">
+    <circle cx="300" cy="300" r="250" stroke-width="1" opacity="0.4" />
+    <circle cx="300" cy="300" r="210" stroke-width="1.5" opacity="0.65" />
+    <circle cx="300" cy="300" r="150" stroke-width="1" opacity="0.5" />
+    <circle cx="300" cy="300" r="96" stroke-width="2" opacity="0.85" />
+    <circle cx="300" cy="300" r="42" stroke-width="1" opacity="0.6" />
+    <g stroke-width="1.25" opacity="0.55">
+      <path d="M300 50 L300 150" /><path d="M300 450 L300 550" />
+      <path d="M50 300 L150 300" /><path d="M450 300 L550 300" />
+      <path d="M123 123 L194 194" /><path d="M406 406 L477 477" />
+      <path d="M477 123 L406 194" /><path d="M194 406 L123 477" />
+    </g>
+    <g stroke-width="1" opacity="0.35">
+      <path d="M300 90 A210 210 0 0 1 510 300" />
+      <path d="M300 510 A210 210 0 0 1 90 300" />
+    </g>
+  </g>
+  <g fill="url(#vg)" opacity="0.9">
+    <circle cx="300" cy="300" r="7" />
+    <circle cx="300" cy="204" r="4" /><circle cx="396" cy="300" r="4" />
+    <circle cx="300" cy="396" r="4" /><circle cx="204" cy="300" r="4" />
+  </g>
+</svg>

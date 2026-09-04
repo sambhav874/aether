@@ -1,0 +1,25 @@
+{
+  "schema": "shot-plan-ir",
+  "project": "aether-signal-router",
+  "category": "motion-graphics",
+  "asset_needs": [],
+  "brief": "A 7-second Swiss-style trading workflow object for the Aether hero. A TradingView/webhook signal enters a controlled execution desk, passes a visible risk guard, routes toward MT5, Dhan, and NSE nodes, and resolves into a recorded position. Use restrained near-black and warm white contrast with Swiss red for active states. Keep motion legible, deterministic, and friendly rather than purely decorative.",
+  "composition": {
+    "duration": 7,
+    "width": 1200,
+    "height": 1200,
+    "fps": 30,
+    "runtime": "gsap",
+    "timeline": "aether-signal-router"
+  },
+  "beats": [
+    { "time": 0.1, "label": "Identity", "elements": ["header"] },
+    { "time": 0.75, "label": "Signal received", "elements": ["input"] },
+    { "time": 1.45, "label": "Risk guard", "elements": ["guard"] },
+    { "time": 2.05, "label": "Execution desk", "elements": ["desk"] },
+    { "time": 2.25, "label": "Route draw", "elements": ["activePath"] },
+    { "time": 3.15, "label": "Broker dispatch", "elements": ["mt5", "dhan", "nse"] },
+    { "time": 4.15, "label": "Position recorded", "elements": ["position"] },
+    { "time": 4.65, "label": "Message hold", "elements": ["caption"] }
+  ]
+}

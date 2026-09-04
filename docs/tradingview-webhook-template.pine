@@ -1,0 +1,49 @@
+//@version=6
+// Webhook signal sender — the only field a user has to edit is Strategy_Slug.
+//
+// Setup:
+//   1. Add this indicator to the chart.
+//   2. Set Strategy_Slug to the slug shown in the strategy's Webhook info dialog.
+//   3. Create an alert on it: Condition = this indicator, "Any alert() function call".
+//   4. Notifications -> Webhook URL -> https://<your-domain>/api/webhook/tradingview
+//   5. Leave the alert Message box alone — alert() below supplies the body.
+//
+// The entry logic here is a placeholder EMA cross. Replace longSignal /
+// shortSignal with your own conditions; leave msg() as is.
+indicator("Webhook Signals", overlay = true)
+
+slug     = input.string("your-slug-here", "Strategy_Slug")
+sym      = input.string("", "Symbol (blank = strategy default)")
+tag      = input.string("S1", "Tag")
+qty      = input.float(0.01, "Quantity")
+sendSlTp = input.bool(true, "Send stopLoss / target to broker")
+paper    = input.bool(false, "Paper Mode (paper=true)")
+secret   = input.string("", "Webhook Secret (blank if none set)")
+
+// Builds SLUG,ACTION,SYMBOL[,key=value...] and wraps it in the JSON body the
+// webhook expects. Symbol is omitted when blank so the strategy's own
+// default symbol is used.
+msg(action, sl, tp) =>
+    m = slug + "," + action
+    m := sym == "" ? m : m + "," + sym
+    m := m + ",tag=" + tag + ",quantity=" + str.tostring(qty)
+    m := sendSlTp ? m + ",stopLoss=" + str.tostring(sl) + ",target=" + str.tostring(tp) + ",type=PRICE" : m
+    m := paper ? m + ",paper=true" : m
+    m := secret == "" ? m : m + ",secret=" + secret
+    '{"message":"' + m + '"}'
+
+longSignal  = ta.crossover(ta.ema(close, 9), ta.ema(close, 21))
+shortSignal = ta.crossunder(ta.ema(close, 9), ta.ema(close, 21))
+
+plotshape(longSignal, style = shape.triangleup, location = location.belowbar, color = color.green)
+plotshape(shortSignal, style = shape.triangledown, location = location.abovebar, color = color.red)
+
+if longSignal
+    alert(msg("BUY", close * 0.99, close * 1.02), alert.freq_once_per_bar_close)
+if shortSignal
+    alert(msg("SELL", close * 1.01, close * 0.98), alert.freq_once_per_bar_close)
+
+// Reversal example — one alert that closes the opposite side and opens a new
+// one. Both legs are gated by the strategy's Entry / Exit switches.
+// if reverseToLong
+//     alert(msg("CLOSESHORTBUY", close * 0.99, close * 1.02), alert.freq_once_per_bar_close)

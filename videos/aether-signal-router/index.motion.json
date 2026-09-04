@@ -1,0 +1,10 @@
+{
+  "duration": 7,
+  "assertions": [
+    { "kind": "appearsBy", "selector": "#hf-router-stage", "bySec": 1.5 },
+    { "kind": "before", "a": "#hf-router-input", "b": "#hf-router-desk" },
+    { "kind": "before", "a": "#hf-router-desk", "b": "#hf-router-position" },
+    { "kind": "staysInFrame", "selector": "#hf-router-stage" },
+    { "kind": "keepsMoving", "withinSelector": "#router-scene", "maxStaticSec": 2 }
+  ]
+}

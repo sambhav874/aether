@@ -1,0 +1,9 @@
+{
+  "name": "aether-signal-router",
+  "version": 1,
+  "width": 1200,
+  "height": 1200,
+  "duration": 7,
+  "fps": 30,
+  "entry": "index.html"
+}
