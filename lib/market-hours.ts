@@ -33,3 +33,24 @@ export function isForexLive(now = new Date()): boolean {
   const midWeek = day >= 1 && day <= 4;
   return afterSundayOpen || beforeFridayClose || midWeek;
 }
+
+const IST_CALENDAR_DATE = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Kolkata",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/**
+ * The UTC instant at which the current IST calendar day began — 18:30 UTC on
+ * the previous day. Daily counters for an India-market product have to roll
+ * at IST midnight; a UTC-midnight boundary resets them at 05:30 IST, which is
+ * mid-session for anything counting trades placed that day.
+ *
+ * Goes through the timezone database rather than a hardcoded +5:30 so the
+ * offset stays correct if that ever stops being true.
+ */
+export function istDayStartUtc(now = new Date()): Date {
+  // en-CA formats as YYYY-MM-DD, so this is the IST calendar date.
+  return new Date(`${IST_CALENDAR_DATE.format(now)}T00:00:00+05:30`);
+}

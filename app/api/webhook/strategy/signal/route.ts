@@ -8,6 +8,7 @@ import { deriveSide, buildDispatchableSignal } from "@/lib/webhooks/build-signal
 import { dispatchSignal } from "@/lib/strategies/execute";
 import { checkStrategyRateLimit } from "@/lib/strategies/rate-limits";
 import { notifyWorkspace } from "@/lib/telegram/notify";
+import { createStageTimer, emit } from "@/lib/observability/trace";
 
 // Identical for every "the slug can't be used" reason (unknown, disabled) so
 // an unauthenticated caller can't probe for which slugs exist.
@@ -17,6 +18,8 @@ const INVALID_WEBHOOK_MESSAGE = "Invalid webhook request";
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
+  // Stage timings for the whole path — see lib/observability/trace.ts for why.
+  const timer = createStageTimer();
   const messageResult = await extractMessage(request);
   if (typeof messageResult !== "string") {
     return NextResponse.json({ error: messageResult.error }, { status: 400 });
@@ -27,11 +30,13 @@ export async function POST(request: NextRequest) {
   const storedBody = redactSecret(rawBody);
 
   const parsed = parseSignalMessage(messageResult);
+  timer.mark("parsed");
   if ("error" in parsed) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
   const strategy = await db.query.strategies.findFirst({ where: eq(strategies.slug, parsed.slug) });
+  timer.mark("strategy_loaded");
   if (!strategy || strategy.status === "paused") {
     if (strategy) {
       // Still logged for the owner's own signal history — the uniform 404
@@ -56,7 +61,7 @@ export async function POST(request: NextRequest) {
 
   // Same uniform 404 as an unknown slug: a wrong secret must not tell the
   // caller that the slug itself was right.
-  if (strategy.webhookSecret && !secretMatches(strategy.webhookSecret, parsed.secret)) {
+  if (!secretMatches(strategy.webhookSecret, parsed.secret)) {
     await db.insert(signals).values({
       id: crypto.randomUUID(),
       strategyId: strategy.id,
@@ -75,6 +80,7 @@ export async function POST(request: NextRequest) {
   }
 
   const rateLimit = await checkStrategyRateLimit(strategy.id, strategy.coolDownPeriod, strategy.maxTriggersPerDay);
+  timer.mark("rate_limited");
   if (!rateLimit.ok) {
     await db.insert(signals).values({
       id: crypto.randomUUID(),
@@ -127,6 +133,7 @@ export async function POST(request: NextRequest) {
     parsedFields: parsed.fields,
     rawPayload: storedBody,
   });
+  timer.mark("persisted");
 
   const pendingConfirmation = strategy.handleType === "MANUAL";
   const outcome = pendingConfirmation
@@ -146,10 +153,25 @@ export async function POST(request: NextRequest) {
         signal,
       );
 
+  timer.mark("dispatched");
+
   await db
     .update(signals)
     .set({ status: outcome.status, resultMessage: outcome.resultMessage })
     .where(eq(signals.id, signalId));
+
+  emit("signal.complete", {
+    signalId,
+    strategyId: strategy.id,
+    slug: parsed.slug,
+    source: "webhook",
+    action: parsed.action,
+    symbol,
+    status: outcome.status,
+    resultMessage: outcome.resultMessage,
+    totalMs: timer.totalMs(),
+    stages: timer.stages(),
+  });
 
   const emoji = outcome.status === "rejected" ? "⛔" : outcome.status === "pending_confirmation" ? "⏳" : "✅";
   void notifyWorkspace(

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { refuseUnauthorizedCron } from "@/lib/auth/cron";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { pendingLimitOrders, positions, signals, strategies } from "@/db/schema";
@@ -18,12 +19,8 @@ export const maxDuration = 60;
  * checks within it, not one hit at the deadline.
  */
 export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-
-  if (!secret || authHeader !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const unauthorized = refuseUnauthorizedCron(request);
+  if (unauthorized) return unauthorized;
 
   const pending = await db.select().from(pendingLimitOrders).where(eq(pendingLimitOrders.status, "pending"));
 

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { refuseUnauthorizedCron } from "@/lib/auth/cron";
 import { refreshInstrumentFundamentals } from "@/lib/ai/screening/refresh-fundamentals";
 
 /**
@@ -19,12 +20,8 @@ import { refreshInstrumentFundamentals } from "@/lib/ai/screening/refresh-fundam
 export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-
-  if (!secret || authHeader !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const unauthorized = refuseUnauthorizedCron(request);
+  if (unauthorized) return unauthorized;
 
   const summary = await refreshInstrumentFundamentals();
   return NextResponse.json(summary);

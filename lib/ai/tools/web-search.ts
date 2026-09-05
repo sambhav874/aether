@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { ok, unavailable, type ToolResult } from "./shared";
+import { fetchWithTimeout, CONTENT_TIMEOUT_MS } from "@/lib/http";
 
 /**
  * Keiro Labs web search/research — see PLAN_AI_COPILOT.md §2.1 "Web search
@@ -50,7 +51,8 @@ async function post<T>(path: string, body: unknown): Promise<ToolResult<T>> {
 
   try {
     const url = resolveEndpointUrl(config.baseUrl, path);
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
+      timeoutMs: CONTENT_TIMEOUT_MS,
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.apiKey}` },
       body: JSON.stringify(body),

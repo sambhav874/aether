@@ -6,6 +6,7 @@ import { db } from "@/db/client";
 import { userRssFeeds } from "@/db/schema";
 import { getSession, requireActiveWorkspace } from "@/lib/auth/session";
 import { hasWorkspacePermission } from "@/lib/auth/permissions";
+import { fetchWithTimeout, CONTENT_TIMEOUT_MS } from "@/lib/http";
 
 export type UserRssFeed = {
   id: string;
@@ -65,7 +66,8 @@ export async function testUserRssFeed(url: string): Promise<FeedTestResult> {
   }
 
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
+      timeoutMs: CONTENT_TIMEOUT_MS,
       headers: { "User-Agent": USER_AGENT, Accept: "application/rss+xml, application/xml, text/xml" },
       cache: "no-store",
     });

@@ -42,11 +42,14 @@ export const strategies = pgTable(
     // · disabled" framing. No cross-workspace visibility or execution is
     // wired to this; it doesn't do anything beyond being displayed/filtered.
     isGlobal: boolean("is_global").notNull().default(false),
-    // When true (or overridden per-signal via paper=true), dispatchEntry
-    // creates a positions row with isPaper=true and never calls the broker.
-    // See "Entry Limit Price" in the webhook guide for the price= fallback
-    // rule used when no live tick is available.
-    paperTrading: boolean("paper_trading").notNull().default(false),
+    // When true (the default) dispatchEntry creates a positions row with
+    // isPaper=true and never calls the broker. Can also be forced per-signal
+    // via paper=true. See "Entry Limit Price" in the webhook guide for the
+    // price= fallback rule used when no live tick is available.
+    //
+    // Defaults ON: a strategy that is misconfigured, half-built, or wired to
+    // the wrong symbol should cost nothing. Going live is an explicit act.
+    paperTrading: boolean("paper_trading").notNull().default(true),
     // Per-action kill switches, mirroring the reference product's Entry /
     // Exit / SL-Target toggles. A signal whose action falls under a disabled
     // toggle is cancelled with a reason instead of dispatching — see
@@ -57,13 +60,18 @@ export const strategies = pgTable(
     allowEntry: boolean("allow_entry").notNull().default(true),
     allowExit: boolean("allow_exit").notNull().default(true),
     allowModify: boolean("allow_modify").notNull().default(true),
-    // Optional shared secret for the webhook endpoints. Null (the default)
-    // means slug-only auth, matching the reference product. When set, an
-    // inbound signal must carry a matching `secret=` field or it is rejected
-    // with the same uniform error an unknown slug gets. Stored in plaintext
-    // because the owner has to paste it into their TradingView alert body;
-    // it is redacted out of the signal's stored raw payload.
-    webhookSecret: text("webhook_secret"),
+    // Required shared secret for the webhook endpoints. Every inbound signal
+    // must carry a matching `secret=` field or it is rejected with the same
+    // uniform error an unknown slug gets.
+    //
+    // This was previously nullable, and null meant slug-only auth "matching
+    // the reference product". Slugs are derived from the strategy name and
+    // are unique product-wide, so that made a guessable string sufficient to
+    // place live orders. Generated at creation, rotatable, never clearable.
+    //
+    // Still plaintext because the owner has to paste it into a TradingView
+    // alert body; it is redacted out of the signal's stored raw payload.
+    webhookSecret: text("webhook_secret").notNull(),
     // "Hide signals" menu item — collapses the Signals tab in the expanded
     // row without deleting any signal history.
     signalsHidden: boolean("signals_hidden").notNull().default(false),

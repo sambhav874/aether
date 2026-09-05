@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { refuseUnauthorizedCron } from "@/lib/auth/cron";
 import { evaluatePartialRules } from "@/lib/strategies/rules";
 
 // Walks every open position and may place broker orders — more than the default.
@@ -15,12 +16,8 @@ export const maxDuration = 60;
  * lib/strategies/rules.ts's evaluatePartialRules for why.
  */
 export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-
-  if (!secret || authHeader !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const unauthorized = refuseUnauthorizedCron(request);
+  if (unauthorized) return unauthorized;
 
   const summary = await evaluatePartialRules();
   return NextResponse.json(summary);

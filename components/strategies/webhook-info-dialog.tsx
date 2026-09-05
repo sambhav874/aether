@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Copy, Eye, EyeOff, KeyRound, RefreshCw, Trash2 } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, KeyRound, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,7 +12,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fetchWebhookSecret, rotateWebhookSecret, clearWebhookSecret } from "@/lib/strategies/detail-actions";
+import { fetchWebhookSecret, rotateWebhookSecret } from "@/lib/strategies/detail-actions";
 
 function CopyButton({ value, className }: { value: string; className?: string }) {
   const [copied, setCopied] = React.useState(false);
@@ -223,27 +223,6 @@ export function WebhookInfoDialog({
                   {hasSecret ? <RefreshCw className="size-3" /> : <KeyRound className="size-3" />}
                   {hasSecret ? "Rotate" : "Generate"}
                 </Button>
-                {hasSecret && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs"
-                    disabled={pending}
-                    onClick={() =>
-                      startTransition(async () => {
-                        const result = await clearWebhookSecret(strategyId);
-                        if (!result.error) {
-                          setSecret(null);
-                          setHasSecret(false);
-                          setRevealed(false);
-                        }
-                      })
-                    }
-                  >
-                    <Trash2 className="size-3" />
-                    Remove
-                  </Button>
-                )}
               </div>
             )}
             {hasSecret && (

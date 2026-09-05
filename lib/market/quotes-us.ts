@@ -1,5 +1,6 @@
 import "server-only";
 import type { SearchResult, SymbolQuoteResult, UsCategory, UsListResult, UsRow } from "@/lib/market/types";
+import { fetchWithTimeout } from "@/lib/http";
 
 const BASE_URL = "https://finnhub.io/api/v1";
 
@@ -68,7 +69,7 @@ async function fetchQuote(symbol: string, token: string): Promise<FinnhubQuote |
   if (pending) return pending;
 
   const request = (async () => {
-    const response = await fetch(`${BASE_URL}/quote?symbol=${encodeURIComponent(symbol)}&token=${token}`, {
+    const response = await fetchWithTimeout(`${BASE_URL}/quote?symbol=${encodeURIComponent(symbol)}&token=${token}`, {
       cache: "no-store",
     });
     if (!response.ok) return null;
@@ -150,7 +151,7 @@ export async function searchSymbols(query: string): Promise<SearchResult> {
   if (cached && cached.expires > Date.now()) return { status: "ok", hits: cached.hits };
 
   try {
-    const response = await fetch(`${BASE_URL}/search?q=${encodeURIComponent(key)}&token=${token}`, {
+    const response = await fetchWithTimeout(`${BASE_URL}/search?q=${encodeURIComponent(key)}&token=${token}`, {
       cache: "no-store",
     });
     if (!response.ok) return { status: "unavailable", reason: `Finnhub returned HTTP ${response.status}` };

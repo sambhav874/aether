@@ -1,5 +1,6 @@
 import "server-only";
 import type { NewsArticle, NewsResult } from "@/lib/research/types";
+import { fetchWithTimeout, CONTENT_TIMEOUT_MS } from "@/lib/http";
 
 function getConfig(): { apiKey: string; baseUrl: string } | null {
   const apiKey = process.env.KEIRO_API_KEY;
@@ -42,7 +43,8 @@ export async function getTickerNewsFromKeiro(symbol: string): Promise<NewsResult
 
   try {
     const url = resolveSearchUrl(config.baseUrl);
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
+      timeoutMs: CONTENT_TIMEOUT_MS,
       method: "POST",
       headers: {
         "Content-Type": "application/json",

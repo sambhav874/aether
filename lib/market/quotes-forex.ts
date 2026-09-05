@@ -1,5 +1,6 @@
 import "server-only";
 import type { QuoteListResult, QuoteRow } from "@/lib/market/types";
+import { fetchWithTimeout } from "@/lib/http";
 
 // Frankfurter serves the ECB's published reference rates — free, no key,
 // but updated once per business day (~16:00 CET), not intraday. That's the
@@ -33,7 +34,7 @@ export async function getForexRates(): Promise<QuoteListResult> {
     const end = new Date();
     const start = new Date(end.getTime() - 10 * 24 * 60 * 60 * 1000);
     const symbols = PAIRS.map((p) => p.symbol).join(",");
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `https://api.frankfurter.dev/v1/${toDateStr(start)}..${toDateStr(end)}?base=USD&symbols=${symbols}`,
       { cache: "no-store" },
     );

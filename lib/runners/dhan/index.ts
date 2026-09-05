@@ -2,6 +2,7 @@ import "server-only";
 import { getStoredCredentials } from "@/lib/runners/credentials";
 import { assertValidTotpSecret } from "@/lib/totp";
 import { classifyIndianMarket } from "@/lib/runners/types";
+import { fetchWithTimeout, BROKER_TIMEOUT_MS } from "@/lib/http";
 import type {
   BrokerRunner,
   Balance,
@@ -30,7 +31,8 @@ export async function dhanFetch<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetchWithTimeout(`${BASE_URL}${path}`, {
+    timeoutMs: BROKER_TIMEOUT_MS,
     ...init,
     headers: {
       "Content-Type": "application/json",

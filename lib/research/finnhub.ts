@@ -2,6 +2,7 @@ import "server-only";
 import type { NewsArticle, NewsMarketTag, NewsResult } from "@/lib/research/types";
 import { getTickerNewsFromKeiro } from "@/lib/research/keiro";
 import { getAggregatedNews } from "@/lib/research/rss";
+import { fetchWithTimeout } from "@/lib/http";
 
 const BASE_URL = "https://finnhub.io/api/v1";
 
@@ -46,7 +47,7 @@ export async function getMarketNews(category: "general" | "forex" | "crypto" | "
   if (token) {
     try {
       const url = `${BASE_URL}/news?category=${category}&token=${token}`;
-      const response = await fetch(url, { next: { revalidate: 120 } });
+      const response = await fetchWithTimeout(url, { next: { revalidate: 120 } });
       if (response.ok) {
         const data: unknown = await response.json();
         if (Array.isArray(data)) {
@@ -82,7 +83,7 @@ export async function getTickerNews(symbol: string): Promise<NewsResult> {
       const from = new Date(to.getTime() - 14 * 24 * 60 * 60 * 1000);
       const fmt = (d: Date) => d.toISOString().slice(0, 10);
       const url = `${BASE_URL}/company-news?symbol=${encodeURIComponent(symbol)}&from=${fmt(from)}&to=${fmt(to)}&token=${token}`;
-      const response = await fetch(url, { next: { revalidate: 120 } });
+      const response = await fetchWithTimeout(url, { next: { revalidate: 120 } });
       if (response.ok) {
         const data: unknown = await response.json();
         if (Array.isArray(data)) {

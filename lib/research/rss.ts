@@ -1,5 +1,6 @@
 import "server-only";
 import type { NewsArticle, NewsMarketTag, NewsResult } from "@/lib/research/types";
+import { fetchWithTimeout, CONTENT_TIMEOUT_MS } from "@/lib/http";
 
 // Every URL here was fetched directly and confirmed to return a real RSS
 // feed (HTTP 200, application/rss+xml body) before being hardcoded — feed
@@ -125,7 +126,8 @@ export async function getAggregatedNews(
 
   const results = await Promise.allSettled(
     feeds.map(async (feed) => {
-      const response = await fetch(feed.url, {
+      const response = await fetchWithTimeout(feed.url, {
+        timeoutMs: CONTENT_TIMEOUT_MS,
         headers: { "User-Agent": USER_AGENT, Accept: "application/rss+xml, application/xml, text/xml" },
         // Was no-store, which made every dashboard/research view re-fetch
         // every feed before anything could render — the dominant cost on

@@ -16,6 +16,7 @@ import {
   telegramConnections,
 } from "@/db/schema";
 import { requireActiveWorkspace } from "@/lib/auth/session";
+import { generateWebhookSecret } from "@/lib/strategies/webhook-secret";
 import { checkStrategyPermission, type StrategyPermissionLevel } from "@/lib/strategies/permissions";
 import { auth } from "@/lib/auth/server";
 import { logAudit } from "@/lib/audit/log";
@@ -454,12 +455,7 @@ export async function rotateWebhookSecret(strategyId: string): Promise<{ secret?
     .limit(1);
   if (!strategy) return { error: "Strategy not found." };
 
-  // Hex, not base64 — it rides inside a comma-separated webhook message and
-  // gets pasted into a Pine string, so anything with "+", "/" or "=" in it
-  // would be a footgun.
-  const secret = Array.from(crypto.getRandomValues(new Uint8Array(24)))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  const secret = generateWebhookSecret();
 
   await db.update(strategies).set({ webhookSecret: secret, updatedAt: new Date() }).where(eq(strategies.id, strategyId));
 
@@ -472,29 +468,4 @@ export async function rotateWebhookSecret(strategyId: string): Promise<{ secret?
 
   revalidatePath(STRATEGIES_PATH);
   return { secret };
-}
-
-/** Drops the secret — the strategy falls back to slug-only auth. */
-export async function clearWebhookSecret(strategyId: string): Promise<ActionResult> {
-  const { workspace, session, check } = await guard(strategyId, "edit_execute");
-  if (!check.ok) return { error: check.error };
-
-  const [strategy] = await db
-    .select({ name: strategies.name })
-    .from(strategies)
-    .where(and(eq(strategies.id, strategyId), eq(strategies.workspaceId, workspace.id)))
-    .limit(1);
-  if (!strategy) return { error: "Strategy not found." };
-
-  await db.update(strategies).set({ webhookSecret: null, updatedAt: new Date() }).where(eq(strategies.id, strategyId));
-
-  await logAudit({
-    workspaceId: workspace.id,
-    actorId: session.user.id,
-    action: "strategy.webhook_secret_cleared",
-    summary: `Removed webhook secret for strategy "${strategy.name}" — slug-only auth`,
-  });
-
-  revalidatePath(STRATEGIES_PATH);
-  return { success: true };
 }

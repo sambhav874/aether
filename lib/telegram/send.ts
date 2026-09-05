@@ -1,4 +1,5 @@
 import "server-only";
+import { fetchWithTimeout, CONTENT_TIMEOUT_MS } from "@/lib/http";
 
 const BASE_URL = "https://api.telegram.org";
 
@@ -13,7 +14,8 @@ function getToken(): string {
 type TelegramApiResult<T> = { ok: boolean; result?: T; description?: string };
 
 async function callTelegram<T>(method: string, body?: Record<string, unknown>): Promise<TelegramApiResult<T>> {
-  const res = await fetch(`${BASE_URL}/bot${getToken()}/${method}`, {
+  const res = await fetchWithTimeout(`${BASE_URL}/bot${getToken()}/${method}`, {
+    timeoutMs: CONTENT_TIMEOUT_MS,
     method: body ? "POST" : "GET",
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,

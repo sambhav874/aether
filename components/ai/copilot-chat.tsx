@@ -663,7 +663,7 @@ export function CopilotChat({ pinnedSymbol: initialPinnedSymbol }: CopilotChatPr
                     >
                       <div>
                         <div className="flex items-center justify-between text-black/40 dark:text-white/40 text-[10px] uppercase tracking-[0.16em]">
-                          <span>{item.code} //</span>
+                          <span>{`${item.code} //`}</span>
                           <span>{item.category.split(" ")[0]}</span>
                         </div>
                         <h4 className="mt-3 font-sans text-sm font-medium tracking-tight text-foreground group-hover:text-[#c8102e]">

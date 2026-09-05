@@ -101,13 +101,20 @@ function readThemeColors() {
 
 function CandleChart({ seriesId, title }: { seriesId: string; title?: string }) {
   const [state, setState] = React.useState<CandleFetchState>({ status: "loading" });
+  // Reset to loading when the series changes, during render rather than in
+  // the effect below — setting it synchronously inside an effect makes React
+  // paint the previous series' candles once before the reset lands.
+  const [loadedFor, setLoadedFor] = React.useState(seriesId);
+  if (loadedFor !== seriesId) {
+    setLoadedFor(seriesId);
+    setState({ status: "loading" });
+  }
   const containerRef = React.useRef<HTMLDivElement>(null);
   const chartRef = React.useRef<IChartApi | null>(null);
   const seriesRef = React.useRef<ISeriesApi<"Candlestick"> | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
-    setState({ status: "loading" });
     fetch(`/api/ai/candles?seriesId=${encodeURIComponent(seriesId)}`)
       .then(async (res) => {
         const body = await res.json();

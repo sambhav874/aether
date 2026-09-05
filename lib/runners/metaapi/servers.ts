@@ -1,4 +1,5 @@
 import "server-only";
+import { fetchWithTimeout, BROKER_TIMEOUT_MS } from "@/lib/http";
 
 const PROVISIONING_HOST =
   "https://mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai";
@@ -36,7 +37,8 @@ export async function searchKnownMtServers(
   const url = new URL(`${PROVISIONING_HOST}/known-mt-servers/${version}/search`);
   url.searchParams.set("query", trimmed);
 
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
+    timeoutMs: BROKER_TIMEOUT_MS,
     headers: { "auth-token": token },
     // Broker registries move slowly; a short cache keeps keystroke-driven
     // lookups off MetaAPI's rate limit.

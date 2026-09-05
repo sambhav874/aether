@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from "@/lib/http";
+
 export type CryptoHeatmapEntry = {
   id: string;
   symbol: string;
@@ -23,7 +25,7 @@ const COINGECKO_MARKETS_URL =
  */
 export async function getCryptoHeatmap(): Promise<CryptoHeatmapResult> {
   try {
-    const response = await fetch(COINGECKO_MARKETS_URL, {
+    const response = await fetchWithTimeout(COINGECKO_MARKETS_URL, {
       next: { revalidate: 60 },
       headers: { accept: "application/json" },
     });

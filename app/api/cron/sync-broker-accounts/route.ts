@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { refuseUnauthorizedCron } from "@/lib/auth/cron";
 import { syncAllBrokerAccounts } from "@/lib/runners/sync";
 
 // One broker round-trip per connected account, sequentially.
@@ -10,12 +11,8 @@ export const maxDuration = 60;
  * `Authorization: Bearer $CRON_SECRET`.
  */
 export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-
-  if (!secret || authHeader !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const unauthorized = refuseUnauthorizedCron(request);
+  if (unauthorized) return unauthorized;
 
   const summary = await syncAllBrokerAccounts();
   return NextResponse.json(summary);

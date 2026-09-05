@@ -2,6 +2,7 @@ import "server-only";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { signals } from "@/db/schema/strategies";
+import { istDayStartUtc } from "@/lib/market-hours";
 
 export type RateLimitResult = { ok: true } | { ok: false; reason: string };
 
@@ -16,9 +17,9 @@ export async function checkStrategyRateLimit(
 ): Promise<RateLimitResult> {
   if (!coolDownPeriod && !maxTriggersPerDay) return { ok: true };
 
-  const todayStart = new Date();
-  todayStart.setUTCHours(0, 0, 0, 0);
-  const todayStartIso = todayStart.toISOString();
+  // IST, not UTC: a UTC-midnight window rolls at 05:30 IST, resetting the
+  // daily cap in the middle of the NSE session.
+  const todayStartIso = istDayStartUtc().toISOString();
 
   // extract(epoch from ...) returns a plain number regardless of how the
   // driver would otherwise parse a naive timestamp column — `receivedAt` has

@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { getStoredCredentials, updateStoredCredentials } from "@/lib/runners/credentials";
 import { generateTotp } from "@/lib/totp";
+import { fetchWithTimeout, BROKER_TIMEOUT_MS } from "@/lib/http";
 
 /**
  * Shared transport for every Motilal Oswal call. Endpoints, headers and
@@ -140,7 +141,8 @@ export async function motilalLogin(creds: MotilalCreds): Promise<string> {
   if (creds.twoFa) body["2FA"] = creds.twoFa;
   if (creds.totpSecret) body.totp = generateTotp(creds.totpSecret);
 
-  const res = await fetch(`${BASE_URL}/rest/login/v3/authdirectapi`, {
+  const res = await fetchWithTimeout(`${BASE_URL}/rest/login/v3/authdirectapi`, {
+    timeoutMs: BROKER_TIMEOUT_MS,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -239,7 +241,8 @@ export async function motilalFetch<T>(
 }
 
 async function request<T>(creds: MotilalCreds, path: string, init: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetchWithTimeout(`${BASE_URL}${path}`, {
+    timeoutMs: BROKER_TIMEOUT_MS,
     ...init,
     headers: {
       "Content-Type": "application/json",

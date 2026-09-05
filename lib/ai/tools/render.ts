@@ -22,6 +22,11 @@ import { ok, type ToolResult } from "./shared";
 // object where the schema said array), and having three same-shaped
 // optional fields for one concept is the kind of ambiguity that invites
 // exactly that guess. One field, one shape.
+/** A point as a model may actually emit it: a bare number, or an object
+ * using any of several plausible key names for its axes. Narrowed below
+ * rather than trusted. */
+type RawChartPoint = number | Record<string, unknown>;
+
 const chartSeriesSchema = z.object({
   label: z.string().optional().default("Series"),
   name: z.string().optional(),
@@ -58,7 +63,7 @@ export const renderChartInputSchema = z
     const normalizedSeries = rawSeries.map((s, sIdx) => {
       const label = s.label || s.name || `Series ${sIdx + 1}`;
       const rawPoints = s.points ?? [];
-      const points = rawPoints.map((p: any, pIdx: number) => {
+      const points = rawPoints.map((p: RawChartPoint, pIdx: number) => {
         if (typeof p === "number") {
           return { x: String(pIdx + 1), y: p };
         }

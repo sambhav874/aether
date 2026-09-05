@@ -8,6 +8,7 @@ import { deriveSide, buildDispatchableSignal } from "@/lib/webhooks/build-signal
 import { dispatchSignal } from "@/lib/strategies/execute";
 import { checkStrategyRateLimit } from "@/lib/strategies/rate-limits";
 import { notifyWorkspace } from "@/lib/telegram/notify";
+import { createStageTimer, emit } from "@/lib/observability/trace";
 
 // The 202 is immediate, but after() keeps running — the function must stay alive for it.
 export const maxDuration = 60;
@@ -22,6 +23,9 @@ export const maxDuration = 60;
  * is explicit that this endpoint never talks back about what went wrong.
  */
 export async function POST(request: NextRequest) {
+  // Timed from request entry, not from inside after() — the queued work is
+  // part of the order's latency even though the 202 already went out.
+  const timer = createStageTimer();
   const messageResult = await extractMessage(request);
   const rawBody = typeof messageResult === "string" ? messageResult : "";
   // Both the signals row and the console logs below use this, never rawBody —
@@ -36,12 +40,14 @@ export async function POST(request: NextRequest) {
       }
 
       const parsed = parseSignalMessage(messageResult);
+      timer.mark("parsed");
       if ("error" in parsed) {
         console.error("[webhook/tradingview] parse error — %s | raw: %s", parsed.error, storedBody);
         return;
       }
 
       const strategy = await db.query.strategies.findFirst({ where: eq(strategies.slug, parsed.slug) });
+      timer.mark("strategy_loaded");
       if (!strategy || strategy.status === "paused") {
         if (strategy) {
           await db.insert(signals).values({
@@ -62,7 +68,7 @@ export async function POST(request: NextRequest) {
         return;
       }
 
-      if (strategy.webhookSecret && !secretMatches(strategy.webhookSecret, parsed.secret)) {
+      if (!secretMatches(strategy.webhookSecret, parsed.secret)) {
         await db.insert(signals).values({
           id: crypto.randomUUID(),
           strategyId: strategy.id,
@@ -82,6 +88,7 @@ export async function POST(request: NextRequest) {
       }
 
       const rateLimit = await checkStrategyRateLimit(strategy.id, strategy.coolDownPeriod, strategy.maxTriggersPerDay);
+      timer.mark("rate_limited");
       if (!rateLimit.ok) {
         await db.insert(signals).values({
           id: crypto.randomUUID(),
@@ -134,6 +141,7 @@ export async function POST(request: NextRequest) {
         parsedFields: parsed.fields,
         rawPayload: storedBody,
       });
+      timer.mark("persisted");
 
       const pendingConfirmation = strategy.handleType === "MANUAL";
       const outcome = pendingConfirmation
@@ -153,10 +161,25 @@ export async function POST(request: NextRequest) {
             signal,
           );
 
+      timer.mark("dispatched");
+
       await db
         .update(signals)
         .set({ status: outcome.status, resultMessage: outcome.resultMessage })
         .where(eq(signals.id, signalId));
+
+      emit("signal.complete", {
+        signalId,
+        strategyId: strategy.id,
+        slug: parsed.slug,
+        source: "tradingview",
+        action: parsed.action,
+        symbol,
+        status: outcome.status,
+        resultMessage: outcome.resultMessage,
+        totalMs: timer.totalMs(),
+        stages: timer.stages(),
+      });
 
       const emoji = outcome.status === "rejected" ? "⛔" : outcome.status === "pending_confirmation" ? "⏳" : "✅";
       void notifyWorkspace(
