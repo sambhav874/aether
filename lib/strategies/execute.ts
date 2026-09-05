@@ -134,11 +134,19 @@ export function riskBasedStop(entryPrice: number, side: "long" | "short", riskPe
 // BUY must never pay above the requested price, SELL must never accept below
 // it — so a BUY limit rounds down to the ₹0.05 grid and a SELL limit rounds
 // up, per the documented options entry-limit-price spec.
-function roundOptionTick(price: number, side: "long" | "short"): number {
-  const tick = 0.05;
-  const steps = price / tick;
-  const rounded = side === "long" ? Math.floor(steps) * tick : Math.ceil(steps) * tick;
-  return Number(rounded.toFixed(2));
+//
+// Counted in integer paise rather than dividing by 0.05 directly. In floating
+// point `0.15 / 0.05` is 2.9999999999999996, so Math.floor took an already
+// valid tick price a full tick below what the strategy asked for — 0.15
+// became 0.10, 2.30 became 2.25 — and the resulting BUY limit sat under the
+// market and never filled. Exact tick prices are the common case here, since
+// brokers quote on the grid.
+export function roundOptionTick(price: number, side: "long" | "short"): number {
+  const TICK_PAISE = 5;
+  const paise = Math.round(price * 100);
+  const steps = paise / TICK_PAISE;
+  const rounded = side === "long" ? Math.floor(steps) : Math.ceil(steps);
+  return (rounded * TICK_PAISE) / 100;
 }
 
 export async function linkToBasket(
@@ -730,7 +738,7 @@ async function dispatchCompound(
   };
 }
 
-function resolveAbsolutePrice(
+export function resolveAbsolutePrice(
   raw: string,
   valueType: "PRICE" | "POINTS" | "PERCENTAGE",
   entryPrice: number,
