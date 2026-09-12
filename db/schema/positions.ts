@@ -317,3 +317,61 @@ export const basketPositionsRelations = relations(basketPositions, ({ one }) => 
     references: [positions.id],
   }),
 }));
+
+/**
+ * Emergency stop. A row with `liftedAt` null halts dispatch; `workspaceId`
+ * null halts every workspace on the deployment.
+ *
+ * Modelled as rows rather than a boolean column so a halt carries who called
+ * it, when, and why — during an incident that record is the thing you need
+ * afterwards, and a flag that flips back to false leaves nothing behind.
+ * Before this existed the only way to stop a misbehaving strategy was to
+ * pause each one by hand in the UI, or pull the deployment.
+ */
+export const tradingHalts = pgTable(
+  "trading_halts",
+  {
+    id: text("id").primaryKey(),
+    /** Null means platform-wide — every workspace stops. */
+    workspaceId: text("workspace_id").references(() => organization.id, { onDelete: "cascade" }),
+    reason: text("reason").notNull(),
+    haltedBy: text("halted_by").references(() => user.id, { onDelete: "set null" }),
+    haltedAt: timestamp("halted_at").defaultNow().notNull(),
+    liftedAt: timestamp("lifted_at"),
+    liftedBy: text("lifted_by").references(() => user.id, { onDelete: "set null" }),
+  },
+  (table) => [index("trading_halts_workspace_lifted_idx").on(table.workspaceId, table.liftedAt)],
+);
+
+/**
+ * One row per (signal, account) pair, claimed before the broker is called.
+ *
+ * The unique index is the idempotency guarantee: a replayed webhook — which
+ * TradingView will send, and which any retry logic will cause — conflicts
+ * here instead of placing a second live order on the same account. The claim
+ * is taken up front in dispatchSignal, so every dispatch path inherits it.
+ *
+ * Also the shape the queue migration needs: a durable per-account row that
+ * can be retried, backed off and dead-lettered independently, rather than an
+ * iteration of a loop that dies with its request.
+ */
+export const signalDispatches = pgTable(
+  "signal_dispatches",
+  {
+    id: text("id").primaryKey(),
+    signalId: text("signal_id")
+      .notNull()
+      .references(() => signals.id, { onDelete: "cascade" }),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => brokerAccounts.id, { onDelete: "cascade" }),
+    status: text("status", { enum: ["claimed", "executed", "failed"] }).notNull().default("claimed"),
+    message: text("message"),
+    claimedAt: timestamp("claimed_at").defaultNow().notNull(),
+    settledAt: timestamp("settled_at"),
+  },
+  (table) => [
+    uniqueIndex("signal_dispatches_signal_account_uidx").on(table.signalId, table.accountId),
+    index("signal_dispatches_status_idx").on(table.status),
+  ],
+);

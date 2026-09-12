@@ -16,6 +16,8 @@ import { getRunner } from "@/lib/runners";
 import type { Market } from "@/db/schema";
 import type { SignalAction } from "@/lib/webhooks/parse-signal-message";
 import { gateAction, type ActionGate, type StrategyActionFlags } from "@/lib/strategies/action-gates";
+import { checkTradingHalt, haltMessage } from "@/lib/strategies/halt";
+import { claimAccountsForSignal } from "@/lib/strategies/idempotency";
 
 export type DispatchableSignal = {
   /** The signals row already inserted for this attempt — see route.ts's
@@ -77,7 +79,15 @@ export async function dispatchSignal(
     return { status: "rejected", resultMessage: gate.reason };
   }
 
-  const linkedAccounts = await db
+  // Emergency stop outranks everything below, including the strategy's own
+  // settings — the point of a kill switch is that it needs no cooperation
+  // from the thing being stopped.
+  const halt = await checkTradingHalt(strategy.workspaceId);
+  if (halt.halted) {
+    return { status: "rejected", resultMessage: haltMessage(halt) };
+  }
+
+  let linkedAccounts = await db
     .select({
       accountId: brokerAccounts.id,
       provider: brokerAccounts.provider,
@@ -97,6 +107,21 @@ export async function dispatchSignal(
   if (linkedAccounts.length === 0) {
     return { status: "rejected", resultMessage: "no connected accounts linked to this strategy" };
   }
+
+  // Claim each (signal, account) pair before anything reaches a broker. A
+  // replayed webhook — TradingView sends them, and retries will cause more —
+  // loses the claim and drops out here instead of placing a second live order
+  // on an account that already filled. Claiming centrally means all five
+  // dispatch paths below inherit it.
+  const claimedAccounts = await claimAccountsForSignal(signal.signalId, linkedAccounts);
+  if (claimedAccounts.length === 0) {
+    return { status: "rejected", resultMessage: "duplicate signal — already dispatched to every linked account" };
+  }
+  const skipped = linkedAccounts.length - claimedAccounts.length;
+  if (skipped > 0) {
+    console.warn("[dispatch] signal %s: %d/%d accounts already dispatched, skipping", signal.signalId, skipped, linkedAccounts.length);
+  }
+  linkedAccounts = claimedAccounts;
 
   switch (signal.action) {
     case "BUY":

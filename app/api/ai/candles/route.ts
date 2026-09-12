@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireActiveWorkspace } from "@/lib/auth/session";
+import { getApiSession } from "@/lib/auth/api-session";
 import { decodeSeriesId } from "@/lib/ai/tools/candles";
 import { fetchDailyCandles } from "@/lib/ai/tools/candle-source";
 import { rangeToDays } from "@/lib/ai/tools/shared";
@@ -12,7 +12,9 @@ import { rangeToDays } from "@/lib/ai/tools/shared";
  * just replays that call with downsample:false instead of needing a cache.
  */
 export async function GET(request: NextRequest) {
-  await requireActiveWorkspace();
+  if (!(await getApiSession())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const seriesId = request.nextUrl.searchParams.get("seriesId");
   if (!seriesId) {

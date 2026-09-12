@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { streamText, convertToModelMessages, stepCountIs, toUIMessageStream, createUIMessageStreamResponse, type UIMessage } from "ai";
-import { requireActiveWorkspace } from "@/lib/auth/session";
+import { getApiSession } from "@/lib/auth/api-session";
 import { resolveModelChoice, NoProviderKeyError } from "@/lib/ai/provider/prefs";
 import { resolveLanguageModel } from "@/lib/ai/provider/models";
 import { recordAiRun } from "@/lib/ai/provider/run-tracking";
@@ -50,9 +50,11 @@ function digest(value: unknown, maxLen = 300): string {
  * Needs a real smoke test the moment a key lands, before trusting it.
  */
 export async function POST(request: NextRequest) {
-  const { workspace, session } = await requireActiveWorkspace();
-  const workspaceId = workspace.id;
-  const userId = session.user.id;
+  const apiSession = await getApiSession();
+  if (!apiSession) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const { workspaceId, userId } = apiSession;
 
   let body: ChatRequestBody;
   try {
