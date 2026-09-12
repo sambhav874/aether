@@ -14,8 +14,13 @@ import { createStageTimer, emit } from "@/lib/observability/trace";
 // an unauthenticated caller can't probe for which slugs exist.
 const INVALID_WEBHOOK_MESSAGE = "Invalid webhook request";
 
-// Dispatch fans out to every linked broker account before this replies.
-export const maxDuration = 60;
+// Dispatch fans out to every linked broker account, sequentially, before
+// this replies. The budget is therefore a cap on how many accounts a signal
+// can reach: at ~3s per MetaApi order, 60s silently cut the fan-out around 20
+// accounts, and the signals-row status update sits after the loop so it never
+// ran. 300 moves that threshold out, it does not remove it — the queue
+// migration is what actually fixes this.
+export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   // Stage timings for the whole path — see lib/observability/trace.ts for why.

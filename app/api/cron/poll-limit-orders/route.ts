@@ -8,7 +8,7 @@ import { getRunner } from "@/lib/runners";
 import { linkToBasket, riskBasedStop } from "@/lib/strategies/execute";
 
 // Fills/cancels across every resting order — needs more than the platform default.
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /**
  * Fills or cancels resting options entry-limit orders (price= on BUY/SELL

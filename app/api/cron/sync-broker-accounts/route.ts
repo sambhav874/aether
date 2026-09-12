@@ -2,8 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { refuseUnauthorizedCron } from "@/lib/auth/cron";
 import { syncAllBrokerAccounts } from "@/lib/runners/sync";
 
-// One broker round-trip per connected account, sequentially.
-export const maxDuration = 60;
+// One broker round-trip per connected account, sequentially — so the budget
+// has to scale with connected accounts, not with a fixed idea of "a sync".
+export const maxDuration = 300;
 
 /**
  * Wire this to a scheduler (Supabase pg_cron via `net.http_post`, or a

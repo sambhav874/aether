@@ -12,12 +12,10 @@ import { refreshInstrumentFundamentals } from "@/lib/ai/screening/refresh-fundam
  * with a 500ms stagger is a couple of minutes, well inside a cron job's
  * usual timeout budget.
  */
-// ~130 symbols staggered wants ~2 minutes, but 300 is above the free-tier
-// function ceiling and a deployment that asks for more than its plan allows
-// is rejected outright. 60 truncates the refresh part-way (harmless — it's
-// an idempotent upsert that resumes next run); raise back to 300 on a paid
-// plan.
-export const maxDuration = 60;
+// ~130 symbols staggered wants ~2 minutes. On Hobby this had to sit at 60,
+// which truncated the refresh part-way (harmless — an idempotent upsert that
+// resumed next run). Now on Pro it gets the full budget.
+export const maxDuration = 300;
 
 export async function GET(request: NextRequest) {
   const unauthorized = refuseUnauthorizedCron(request);

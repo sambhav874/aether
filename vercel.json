@@ -1,4 +1,22 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["bom1"]
+  "regions": ["bom1"],
+  "crons": [
+    {
+      "path": "/api/cron/poll-limit-orders",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/sync-broker-accounts",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/evaluate-partial-rules",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/refresh-fundamentals",
+      "schedule": "30 13 * * 1-5"
+    }
+  ]
 }

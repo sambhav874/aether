@@ -10,8 +10,10 @@ import { checkStrategyRateLimit } from "@/lib/strategies/rate-limits";
 import { notifyWorkspace } from "@/lib/telegram/notify";
 import { createStageTimer, emit } from "@/lib/observability/trace";
 
-// The 202 is immediate, but after() keeps running — the function must stay alive for it.
-export const maxDuration = 60;
+// The 202 is immediate, but after() keeps running — the function must stay
+// alive for it, and that background work includes the whole per-account
+// fan-out. Same truncation risk as the sync route; see the note there.
+export const maxDuration = 300;
 
 /**
  * TradingView-specific webhook: unlike /api/webhook/strategy/signal, this

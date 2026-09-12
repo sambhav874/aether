@@ -3,7 +3,7 @@ import { refuseUnauthorizedCron } from "@/lib/auth/cron";
 import { evaluatePartialRules } from "@/lib/strategies/rules";
 
 // Walks every open position and may place broker orders — more than the default.
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /**
  * Fires strategy partial-booking rules against open, non-paper positions.
