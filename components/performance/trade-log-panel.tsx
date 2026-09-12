@@ -33,8 +33,8 @@ export function TradeLogPanel({ positions }: { positions: PositionRow[] }) {
     return closed.filter((p) => p.symbol.toLowerCase().includes(q) || (p.strategyLabel ?? "").toLowerCase().includes(q));
   }, [closed, search]);
 
-  function handleExport() {
-    exportRowsToXlsx(
+  async function handleExport() {
+    await exportRowsToXlsx(
       "trade-log",
       "Trades",
       filtered.map((p) => {
@@ -51,7 +51,12 @@ export function TradeLogPanel({ positions }: { positions: PositionRow[] }) {
           Currency: currency,
         };
       }),
-    );
+    ).catch((error) => {
+      // The export is a file download; a silent no-op looks identical to a
+      // slow one, so say something rather than leaving the button dead.
+      console.error("[export] xlsx failed —", error);
+      window.alert("Export failed. Try again, or narrow the filters if the table is very large.");
+    });
   }
 
   return (

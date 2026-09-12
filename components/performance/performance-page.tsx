@@ -103,9 +103,9 @@ export function PerformancePage({
 
   const currenciesPresent = (["USD", "INR"] as const).filter((c) => dailyByCurrency[c].length > 0);
 
-  function handleExportAll() {
+  async function handleExportAll() {
     const closed = filtered.filter((p) => p.status === "closed" && p.closedAt);
-    exportRowsToXlsx(
+    await exportRowsToXlsx(
       "performance-export",
       "Trades",
       closed.map((p) => ({
