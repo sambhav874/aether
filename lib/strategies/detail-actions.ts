@@ -17,6 +17,7 @@ import {
 } from "@/db/schema";
 import { requireActiveWorkspace } from "@/lib/auth/session";
 import { generateWebhookSecret } from "@/lib/strategies/webhook-secret";
+import { exitRulesSchema, maxTriggersSchema, parseInput, riskSettingsSchema } from "@/lib/strategies/schemas";
 import { checkStrategyPermission, type StrategyPermissionLevel } from "@/lib/strategies/permissions";
 import { auth } from "@/lib/auth/server";
 import { logAudit } from "@/lib/audit/log";
@@ -62,6 +63,10 @@ export async function updateStrategyRisk(
   strategyId: string,
   input: Partial<RiskSettingsInput>,
 ): Promise<ActionResult> {
+  const parsed = parseInput(riskSettingsSchema, input);
+  if (!parsed.ok) return { error: parsed.error };
+  input = parsed.data;
+
   const { check } = await guard(strategyId, "edit_execute");
   if (!check.ok) return { error: check.error };
 
@@ -95,6 +100,11 @@ export async function updateStrategyExitRules(
   trailingRules: Omit<TrailingRuleRow, "id">[],
   partialRules: Omit<PartialRuleRow, "id">[],
 ): Promise<ActionResult> {
+  const parsed = parseInput(exitRulesSchema, { trailingRules, partialRules });
+  if (!parsed.ok) return { error: parsed.error };
+  trailingRules = parsed.data.trailingRules;
+  partialRules = parsed.data.partialRules;
+
   const { check } = await guard(strategyId, "edit_execute");
   if (!check.ok) return { error: check.error };
 
@@ -180,9 +190,12 @@ export async function setMaxTriggersPerDay(
   strategyId: string,
   value: number | null,
 ): Promise<ActionResult> {
+  const parsed = parseInput(maxTriggersSchema, value);
+  if (!parsed.ok) return { error: "Must be a whole positive number, or blank for unlimited." };
+  value = parsed.data;
+
   const { check } = await guard(strategyId, "edit_execute");
   if (!check.ok) return { error: check.error };
-  if (value !== null && value <= 0) return { error: "Must be a positive number, or blank for unlimited." };
 
   await db
     .update(strategies)

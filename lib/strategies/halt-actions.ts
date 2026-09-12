@@ -8,6 +8,7 @@ import { requireActiveWorkspace } from "@/lib/auth/session";
 import { hasWorkspacePermission } from "@/lib/auth/permissions";
 import { logAudit } from "@/lib/audit/log";
 import { checkTradingHalt, type HaltState } from "@/lib/strategies/halt";
+import { haltReasonSchema, parseInput } from "@/lib/strategies/schemas";
 
 type ActionResult = { error?: string; success?: boolean };
 
@@ -22,8 +23,9 @@ export async function haltTrading(reason: string): Promise<ActionResult> {
     return { error: "You don't have permission to halt trading." };
   }
 
-  const trimmed = reason.trim();
-  if (!trimmed) return { error: "Give a reason — it's what you'll read back during the post-mortem." };
+  const parsed = parseInput(haltReasonSchema, reason);
+  if (!parsed.ok) return { error: "Give a reason — it's what you'll read back during the post-mortem." };
+  const trimmed = parsed.data;
 
   const existing = await checkTradingHalt(workspace.id);
   if (existing.halted) return { error: "Trading is already halted." };
