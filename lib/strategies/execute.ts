@@ -17,7 +17,8 @@ import type { Market } from "@/db/schema";
 import type { SignalAction } from "@/lib/webhooks/parse-signal-message";
 import { gateAction, type ActionGate, type StrategyActionFlags } from "@/lib/strategies/action-gates";
 import { checkTradingHalt, haltMessage } from "@/lib/strategies/halt";
-import { claimAccountsForSignal } from "@/lib/strategies/idempotency";
+import { claimAccountsForSignal, releaseUnsettledClaims, settleDispatches } from "@/lib/strategies/idempotency";
+import { fanOutToAccounts } from "@/lib/strategies/fan-out";
 
 export type DispatchableSignal = {
   /** The signals row already inserted for this attempt — see route.ts's
@@ -46,7 +47,14 @@ export type DispatchableSignal = {
   paper: string | null;
 };
 
-export type DispatchOutcome = { status: "received" | "rejected"; resultMessage: string };
+export type DispatchOutcome = {
+  status: "received" | "rejected";
+  resultMessage: string;
+  /** Present when the path fanned out through fanOutToAccounts — lets
+   * dispatchSignal settle each claim with its own result rather than one
+   * status for the whole signal. */
+  outcomes?: { accountId: string; executed: boolean; message: string }[];
+};
 
 type LinkedAccount = {
   accountId: string;
@@ -123,6 +131,39 @@ export async function dispatchSignal(
   }
   linkedAccounts = claimedAccounts;
 
+  try {
+    const outcome = await runDispatch(strategy, signal, linkedAccounts, gate);
+    await settleDispatches(
+      signal.signalId,
+      outcome.outcomes ??
+        // Paths that have not moved onto fanOutToAccounts yet report one
+        // status for the whole signal; record that rather than leaving the
+        // claims dangling in `claimed` forever.
+        linkedAccounts.map((account) => ({
+          accountId: account.accountId,
+          executed: outcome.status === "received",
+          message: outcome.resultMessage,
+        })),
+    );
+    return outcome;
+  } catch (error) {
+    // Claimed but never dispatched. Releasing lets a retry reach these
+    // accounts — without it the claim row survives, every retry skips them,
+    // and the order is simply never placed.
+    await releaseUnsettledClaims(
+      signal.signalId,
+      linkedAccounts.map((account) => account.accountId),
+    );
+    throw error;
+  }
+}
+
+async function runDispatch(
+  strategy: StrategyRef,
+  signal: DispatchableSignal,
+  linkedAccounts: LinkedAccount[],
+  gate: ActionGate,
+): Promise<DispatchOutcome> {
   switch (signal.action) {
     case "BUY":
     case "SELL":
@@ -338,22 +379,21 @@ async function dispatchEntry(
     return dispatchPaperEntry(strategy, signal, linkedAccounts, side, baseQuantity, riskPercent, limitPrice);
   }
 
-  let executed = 0;
-  const messages: string[] = [];
-
-  for (const account of linkedAccounts) {
+  // One shared, tested loop instead of a hand-rolled one per dispatch path.
+  // A throw is contained to the account that threw, message order stays the
+  // input order whatever the scheduling, and concurrency is one knob.
+  return fanOutToAccounts(linkedAccounts, async (account: LinkedAccount) => {
     const quantity = baseQuantity * account.multiplier;
-    try {
       if (limitPrice !== null) {
         // Only Motilal can cancel a resting unfilled order today — see
         // app/api/cron/poll-limit-orders/route.ts. Every other adapter gets a
         // clean per-account rejection instead of silently falling back to a
         // market order, which would ignore the caller's price entirely.
         if (account.provider !== "motilal") {
-          messages.push(
-            `${account.accountId}: rejected — price= entries are only honored on Motilal (this adapter can't cancel a resting order yet)`,
-          );
-          continue;
+          return {
+            executed: false,
+            message: `${account.accountId}: rejected — price= entries are only honored on Motilal (this adapter can't cancel a resting order yet)`,
+          };
         }
 
         const roundedPrice = roundOptionTick(limitPrice, side);
@@ -366,8 +406,7 @@ async function dispatchEntry(
         });
 
         if (result.status !== "executed") {
-          messages.push(`${account.accountId}: rejected — ${result.message}`);
-          continue;
+          return { executed: false, message: `${account.accountId}: rejected — ${result.message}` };
         }
 
         // No position yet — it's a resting order. The poll job creates the
@@ -391,11 +430,10 @@ async function dispatchEntry(
           basketName: signal.basketName,
           deadlineAt: new Date(Date.now() + 60_000),
         });
-        executed += 1;
-        messages.push(
-          `${account.accountId}: limit order queued at ${roundedPrice} (orderId=${result.externalOrderId}), awaiting fill up to 60s`,
-        );
-        continue;
+        return {
+          executed: true,
+          message: `${account.accountId}: limit order queued at ${roundedPrice} (orderId=${result.externalOrderId}), awaiting fill up to 60s`,
+        };
       }
 
       const entryRunner = await getRunner(account.provider);
@@ -406,8 +444,7 @@ async function dispatchEntry(
       });
 
       if (result.status !== "executed") {
-        messages.push(`${account.accountId}: rejected — ${result.message}`);
-        continue;
+        return { executed: false, message: `${account.accountId}: rejected — ${result.message}` };
       }
 
       // The broker's own record of the fill is the only trustworthy source
@@ -418,11 +455,10 @@ async function dispatchEntry(
       const fill = brokerPositions.find((p) => p.externalPositionId === result.externalOrderId);
 
       if (!fill) {
-        executed += 1;
-        messages.push(
-          `${account.accountId}: executed (orderId=${result.externalOrderId}) but fill could not be confirmed — not recorded, reconcile manually`,
-        );
-        continue;
+        return {
+          executed: true,
+          message: `${account.accountId}: executed (orderId=${result.externalOrderId}) but fill could not be confirmed — not recorded, reconcile manually`,
+        };
       }
 
       const sl = strategy.handleType === "BY_STRATEGY" ? null : riskBasedStop(fill.entryPrice, side, riskPercent);
@@ -470,17 +506,8 @@ async function dispatchEntry(
         await linkToBasket(strategy.workspaceId, strategy.createdBy, insertedPosition.id, signal.basketId, signal.basketName);
       }
 
-      executed += 1;
-      messages.push(`${account.accountId}: executed`);
-    } catch (error) {
-      messages.push(`${account.accountId}: error — ${error instanceof Error ? error.message : "unknown"}`);
-    }
-  }
-
-  return {
-    status: executed > 0 ? "received" : "rejected",
-    resultMessage: `dispatched to ${executed}/${linkedAccounts.length} accounts: ${messages.join("; ")}`,
-  };
+      return { executed: true, message: `${account.accountId}: executed` };
+  });
 }
 
 /**

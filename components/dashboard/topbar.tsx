@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { pageTitleForPath } from "@/components/dashboard/nav-config";
 import { authClient } from "@/lib/auth/client";
+import { HaltControl } from "@/components/dashboard/halt-control";
+import type { HaltState } from "@/lib/strategies/halt";
 
 function initials(name: string) {
   return name
@@ -35,7 +37,15 @@ function initials(name: string) {
     .toUpperCase();
 }
 
-export function Topbar({ userName, userEmail }: { userName: string; userEmail: string }) {
+export function Topbar({
+  userName,
+  userEmail,
+  haltState,
+}: {
+  userName: string;
+  userEmail: string;
+  haltState: HaltState;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const title = pageTitleForPath(pathname);
@@ -62,7 +72,9 @@ export function Topbar({ userName, userEmail }: { userName: string; userEmail: s
         </BreadcrumbList>
       </Breadcrumb>
 
-      <div className="ml-auto flex items-center gap-1">
+      <div className="ml-auto flex items-center gap-2">
+        <HaltControl initialState={haltState} />
+
         <Button variant="ghost" size="icon" aria-label="Notifications">
           <Bell className="size-4" />
         </Button>

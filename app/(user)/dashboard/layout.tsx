@@ -3,6 +3,7 @@ import { requireActiveWorkspace } from "@/lib/auth/session";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
+import { checkTradingHalt } from "@/lib/strategies/halt";
 import { db } from "@/db/client";
 import { brokerAccounts } from "@/db/schema";
 
@@ -27,6 +28,8 @@ export default async function DashboardLayout({
   const healthPct =
     accounts.length === 0 ? 100 : Math.round(((accounts.length - issueCount) / accounts.length) * 100);
 
+  const haltState = await checkTradingHalt(workspace.id);
+
   return (
     <SidebarProvider>
       <AppSidebar
@@ -45,6 +48,7 @@ export default async function DashboardLayout({
         <Topbar
           userName={session.user.name}
           userEmail={session.user.email}
+          haltState={haltState}
         />
         <main className="flex flex-1 flex-col gap-4 p-4 md:p-6">
           {children}

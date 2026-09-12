@@ -23,6 +23,9 @@ export type FanOutResult = {
   resultMessage: string;
   executed: number;
   total: number;
+  /** Per-account results, in input order — what the signals row cannot hold,
+   * since it aggregates every account into one string. */
+  outcomes: { accountId: string; executed: boolean; message: string }[];
 };
 
 export type FanOutOptions = {
@@ -78,5 +81,6 @@ export async function fanOutToAccounts<A extends { accountId: string }>(
     resultMessage: `dispatched to ${executed}/${accounts.length} accounts: ${outcomes.map((o) => o.message).join("; ")}`,
     executed,
     total: accounts.length,
+    outcomes: accounts.map((account, i) => ({ accountId: account.accountId, ...outcomes[i] })),
   };
 }

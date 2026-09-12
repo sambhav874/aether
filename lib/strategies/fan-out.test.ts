@@ -123,3 +123,39 @@ describe("fanOutToAccounts", () => {
     }
   });
 });
+
+describe("fanOutToAccounts outcomes", () => {
+  it("reports each account's own result, keyed by account", async () => {
+    // The signals row aggregates everything into one string; settling a claim
+    // needs to know which specific account did what.
+    const result = await fanOutToAccounts(accounts("a", "b", "c"), async (acc) =>
+      acc.accountId === "b" ? { executed: false, message: "b: rejected" } : ok(acc.accountId),
+    );
+    expect(result.outcomes).toEqual([
+      { accountId: "a", executed: true, message: "a: executed" },
+      { accountId: "b", executed: false, message: "b: rejected" },
+      { accountId: "c", executed: true, message: "c: executed" },
+    ]);
+  });
+
+  it("reports a thrown account as not executed", async () => {
+    const result = await fanOutToAccounts(accounts("a"), async () => {
+      throw new Error("broker down");
+    });
+    expect(result.outcomes).toEqual([
+      { accountId: "a", executed: false, message: "a: error — broker down" },
+    ]);
+  });
+
+  it("keeps outcomes in input order under concurrency", async () => {
+    const result = await fanOutToAccounts(
+      accounts("a", "b", "c"),
+      async (acc) => {
+        await new Promise((r) => setTimeout(r, acc.accountId === "a" ? 6 : 1));
+        return ok(acc.accountId);
+      },
+      { concurrency: 3 },
+    );
+    expect(result.outcomes.map((o) => o.accountId)).toEqual(["a", "b", "c"]);
+  });
+});
