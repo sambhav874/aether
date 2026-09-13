@@ -6,6 +6,9 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
 import { notificationPreferences, auditLog, user } from "@/db/schema";
 import { requireActiveWorkspace } from "@/lib/auth/session";
+import { ROLE_LABELS } from "@/lib/auth/permissions";
+import { emailSchema } from "@/lib/validation";
+import { parseInput } from "@/lib/strategies/schemas";
 import { auth } from "@/lib/auth/server";
 import { logAudit } from "@/lib/audit/log";
 
@@ -105,6 +108,13 @@ export async function updateWorkspaceGeneral(
 }
 
 export async function inviteMember(email: string, role: string): Promise<{ error?: string }> {
+  const checkedEmail = parseInput(emailSchema, email);
+  if (!checkedEmail.ok) return { error: "Enter a valid email address." };
+  // Role is a key into the permission catalogue; an unknown string must not
+  // reach the auth API and become a member with undefined permissions.
+  if (!(role in ROLE_LABELS)) return { error: "Unknown role." };
+  email = checkedEmail.data;
+
   const { workspace, session } = await requireActiveWorkspace();
 
   try {

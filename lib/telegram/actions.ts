@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
 import { telegramConnections } from "@/db/schema";
 import { requireActiveWorkspace } from "@/lib/auth/session";
+import { idSchema, labelSchema } from "@/lib/validation";
+import { parseInput } from "@/lib/strategies/schemas";
 import { detectRecentTelegramChats, sendTelegramMessage, type DetectedChat } from "@/lib/telegram/send";
 import { logAudit } from "@/lib/audit/log";
 
@@ -16,7 +18,11 @@ export async function listDetectedTelegramChats(): Promise<{ chats: DetectedChat
 
 export async function addTelegramConnection(chatId: string, label: string): Promise<{ error?: string }> {
   const { workspace, session } = await requireActiveWorkspace();
-  if (!chatId.trim() || !label.trim()) return { error: "Chat and label are required." };
+  const checkedChat = parseInput(idSchema, chatId);
+  const checkedLabel = parseInput(labelSchema, label);
+  if (!checkedChat.ok || !checkedLabel.ok) return { error: "Chat and label are required." };
+  chatId = checkedChat.data;
+  label = checkedLabel.data;
 
   try {
     await db.insert(telegramConnections).values({

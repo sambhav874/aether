@@ -6,6 +6,8 @@ import { db } from "@/db/client";
 import { userRssFeeds } from "@/db/schema";
 import { getSession, requireActiveWorkspace } from "@/lib/auth/session";
 import { hasWorkspacePermission } from "@/lib/auth/permissions";
+import { fetchableUrlSchema, labelSchema } from "@/lib/validation";
+import { parseInput } from "@/lib/strategies/schemas";
 import { fetchWithTimeout, CONTENT_TIMEOUT_MS } from "@/lib/http";
 
 export type UserRssFeed = {
@@ -60,6 +62,13 @@ export type FeedTestResult = { ok: boolean; itemCount?: number; error?: string }
 /** Fetches a feed URL once and reports whether it parses as RSS with items —
  * lets a user confirm a feed actually works without waiting on the news page. */
 export async function testUserRssFeed(url: string): Promise<FeedTestResult> {
+  // This URL is fetched server-side, so the request originates inside the
+  // deployment's network. Without this check a user could point it at cloud
+  // instance metadata or any internal service the app can reach.
+  const checked = parseInput(fetchableUrlSchema, url);
+  if (!checked.ok) return { ok: false, error: "Enter a public http(s) feed URL." };
+  url = checked.data;
+
   const { role } = await requireActiveWorkspace();
   if (!hasWorkspacePermission(role, { research: ["view"] })) {
     return { ok: false, error: "You don't have permission to manage research feeds." };
@@ -84,6 +93,13 @@ export async function testUserRssFeed(url: string): Promise<FeedTestResult> {
 }
 
 export async function addUserRssFeed(label: string, url: string): Promise<{ error?: string }> {
+  const checkedUrl = parseInput(fetchableUrlSchema, url);
+  if (!checkedUrl.ok) return { error: "Enter a public http(s) feed URL." };
+  const checkedLabel = parseInput(labelSchema, label);
+  if (!checkedLabel.ok) return { error: "Give the feed a name (120 characters or fewer)." };
+  url = checkedUrl.data;
+  label = checkedLabel.data;
+
   const { session, role } = await requireActiveWorkspace();
   if (!hasWorkspacePermission(role, { research: ["view"] })) {
     return { error: "You don't have permission to manage research feeds." };

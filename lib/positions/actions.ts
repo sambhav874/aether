@@ -6,6 +6,8 @@ import { db } from "@/db/client";
 import { tradingSettings, positions, brokerAccounts, positionExecutions, positionNotes, user } from "@/db/schema";
 import { requireActiveWorkspace } from "@/lib/auth/session";
 import { hasWorkspacePermission } from "@/lib/auth/permissions";
+import { noteBodySchema } from "@/lib/validation";
+import { parseInput } from "@/lib/strategies/schemas";
 import { getRunner } from "@/lib/runners";
 import { logAudit } from "@/lib/audit/log";
 import type { Market } from "@/db/schema";
@@ -73,6 +75,10 @@ export async function getPositionNotes(positionId: string): Promise<NoteRow[]> {
 }
 
 export async function addPositionNote(positionId: string, body: string): Promise<{ error?: string }> {
+  const checked = parseInput(noteBodySchema, body);
+  if (!checked.ok) return { error: "A note must have some text, and be under 5000 characters." };
+  body = checked.data;
+
   const { workspace, session, role } = await requireActiveWorkspace();
   if (!hasWorkspacePermission(role, { trading: ["view"] })) return { error: "You don't have permission to view this position." };
   if (!(await assertOwnsPosition(positionId, workspace.id))) return { error: "Position not found." };
