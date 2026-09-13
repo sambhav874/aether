@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { updateStrategyNotifications, getWorkspaceTelegramChannels } from "@/lib/strategies/detail-actions";
 import type { NotificationPrefRow, NotificationEvent } from "@/lib/strategies/types";
+import { useToast } from "@/components/providers/toast-provider";
 
 const EVENT_LABEL: Record<NotificationEvent, { title: string; description: string }> = {
   entry: { title: "Entry", description: "When a position opens for this strategy." },
@@ -26,6 +27,7 @@ export function NotificationsDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const toast = useToast();
   const [prefs, setPrefs] = React.useState(initial);
   const [channels, setChannels] = React.useState<{ id: string; label: string }[]>([]);
   const [pending, startTransition] = React.useTransition();
@@ -55,7 +57,7 @@ export function NotificationsDialog({
 
   function handleSave() {
     startTransition(async () => {
-      await updateStrategyNotifications(strategyId, prefs);
+      toast.report(await updateStrategyNotifications(strategyId, prefs), "Notifications saved");
       onOpenChange(false);
     });
   }

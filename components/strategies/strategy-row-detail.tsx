@@ -15,6 +15,7 @@ import { formatMoney } from "@/lib/format";
 import type { StrategyRow, SignalRow } from "@/lib/strategies/types";
 import type { PositionRow } from "@/lib/positions/types";
 import type { StrategyDetail } from "@/lib/strategies/types";
+import { useToast } from "@/components/providers/toast-provider";
 
 const MARKET_LABEL: Record<StrategyRow["market"], string> = {
   forex: "Forex",
@@ -49,6 +50,7 @@ function CopyField({ value }: { value: string }) {
         variant="ghost"
         size="icon"
         className="size-6 shrink-0"
+        aria-label={copied ? "Copied" : "Copy to clipboard"}
         onClick={() => {
           navigator.clipboard.writeText(value);
           setCopied(true);
@@ -151,6 +153,7 @@ export function StrategyRowDetail({
   refreshToken: number;
   onDetailLoaded: (detail: StrategyDetail) => void;
 }) {
+  const toast = useToast();
   const { motion: appearanceMotion } = useAppearance();
   const reduced = appearanceMotion === "reduced";
   const [signals, setSignals] = React.useState<SignalRow[] | null>(null);
@@ -193,7 +196,7 @@ export function StrategyRowDetail({
     const next = { ...actions, [key]: value };
     startTransition(async () => {
       setOptimisticActions(next);
-      await updateStrategyActions(strategy.id, next);
+      toast.report(await updateStrategyActions(strategy.id, next));
     });
   }
 

@@ -21,6 +21,7 @@ function CopyButton({ value, className }: { value: string; className?: string })
       variant="ghost"
       size="icon"
       className={className ?? "size-6 shrink-0"}
+      aria-label={copied ? "Copied" : "Copy to clipboard"}
       onClick={() => {
         navigator.clipboard.writeText(value);
         setCopied(true);
@@ -189,6 +190,7 @@ export function WebhookInfoDialog({
                       variant="ghost"
                       size="icon"
                       className="size-6 shrink-0"
+                      aria-label={revealed ? "Hide webhook secret" : "Reveal webhook secret"}
                       onClick={() => setRevealed((v) => !v)}
                     >
                       {revealed ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}

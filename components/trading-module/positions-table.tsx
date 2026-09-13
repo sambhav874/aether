@@ -18,6 +18,7 @@ import { useAppearance } from "@/components/providers/appearance-provider";
 import { getPositionExecutions, getPositionNotes, addPositionNote, type ExecutionRow, type NoteRow } from "@/lib/positions/actions";
 import { getBrokerDashboardUrl } from "@/lib/positions/broker-links";
 import type { GroupingMode } from "@/components/trading-module/grouping-toggle";
+import { useToast } from "@/components/providers/toast-provider";
 
 function formatSince(date: Date) {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -70,6 +71,7 @@ function ExecutionsPanel({
   symbol: string;
   currency: "USD" | "INR";
 }) {
+  const toast = useToast();
   const { motion: appearanceMotion } = useAppearance();
   const reduced = appearanceMotion === "reduced";
   const [executions, setExecutions] = React.useState<ExecutionRow[] | null>(null);
@@ -91,7 +93,7 @@ function ExecutionsPanel({
   function submitNote() {
     if (!draft.trim()) return;
     startTransition(async () => {
-      await addPositionNote(positionId, draft);
+      toast.report(await addPositionNote(positionId, draft));
       setDraft("");
       refreshNotes();
     });

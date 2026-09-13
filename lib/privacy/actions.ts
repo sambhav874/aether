@@ -66,7 +66,11 @@ export async function exportMyData(): Promise<ExportBundle> {
 
   // Strategy rows carry the webhook secret. It is a live credential, not
   // personal data, and an export file is the last place it should travel.
-  const safeStrategies = strategyRows.map(({ webhookSecret: _omitted, ...rest }) => rest);
+  const safeStrategies = strategyRows.map((row) => {
+    const rest: Record<string, unknown> = { ...row };
+    delete rest.webhookSecret;
+    return rest;
+  });
 
   await logAudit({
     workspaceId,

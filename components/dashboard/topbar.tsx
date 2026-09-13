@@ -81,7 +81,7 @@ export function Topbar({
 
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={<Button variant="ghost" size="icon" className="rounded-none" />}
+            render={<Button variant="ghost" size="icon" className="rounded-none" aria-label="Account menu" />}
           >
             <Avatar className="size-7 rounded-none border border-black/15 dark:border-white/15">
               <AvatarFallback className="rounded-none bg-[#c8102e] text-[11px] font-bold text-[#f3f1ed]">

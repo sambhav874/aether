@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { shareStrategy, getShareableMembers } from "@/lib/strategies/detail-actions";
 import type { ShareEntry } from "@/lib/strategies/types";
+import { useToast } from "@/components/providers/toast-provider";
 
 const LEVEL_LABEL: Record<ShareEntry["permission"], string> = {
   none: "No access",
@@ -34,6 +35,7 @@ export function ShareDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const toast = useToast();
   const [members, setMembers] = React.useState<ShareEntry[] | null>(null);
   const [pendingUserId, setPendingUserId] = React.useState<string | null>(null);
 
@@ -43,7 +45,7 @@ export function ShareDialog({
 
   async function handleChange(userId: string, permission: ShareEntry["permission"]) {
     setPendingUserId(userId);
-    await shareStrategy(strategyId, userId, permission);
+    toast.report(await shareStrategy(strategyId, userId, permission), "Sharing updated");
     setMembers((prev) => prev?.map((m) => (m.userId === userId ? { ...m, permission } : m)) ?? null);
     setPendingUserId(null);
   }

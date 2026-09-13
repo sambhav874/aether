@@ -3,6 +3,7 @@ import { requireActiveWorkspace } from "@/lib/auth/session";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
+import { ToastProvider } from "@/components/providers/toast-provider";
 import { checkTradingHalt } from "@/lib/strategies/halt";
 import { db } from "@/db/client";
 import { brokerAccounts } from "@/db/schema";
@@ -31,6 +32,7 @@ export default async function DashboardLayout({
   const haltState = await checkTradingHalt(workspace.id);
 
   return (
+    <ToastProvider>
     <SidebarProvider>
       <AppSidebar
         organizations={workspaces}
@@ -55,5 +57,6 @@ export default async function DashboardLayout({
         </main>
       </SidebarInset>
     </SidebarProvider>
+    </ToastProvider>
   );
 }

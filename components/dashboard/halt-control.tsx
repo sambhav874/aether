@@ -31,7 +31,14 @@ export function HaltControl({ initialState }: { initialState: HaltState }) {
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
-  React.useEffect(() => setState(initialState), [initialState]);
+  // Adjust during render rather than in an effect: the server re-resolves the
+  // halt on every navigation, and syncing in an effect paints one frame of the
+  // stale state first — for this control that frame says trading is running.
+  const [syncedFrom, setSyncedFrom] = React.useState(initialState);
+  if (syncedFrom !== initialState) {
+    setSyncedFrom(initialState);
+    setState(initialState);
+  }
 
   function onHalt() {
     setError(null);

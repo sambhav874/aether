@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TradingViewAdvancedChart } from "@/components/charts/tradingview-advanced-chart";
 import { updateStrategyChart } from "@/lib/strategies/detail-actions";
+import { useToast } from "@/components/providers/toast-provider";
 
 const INTERVALS = ["1", "5", "15", "60", "240", "D", "W"];
 
@@ -27,13 +28,14 @@ export function ChartDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const toast = useToast();
   const [symbol, setSymbol] = React.useState(initialSymbol ?? defaultSymbol ?? "EURUSD");
   const [interval, setInterval] = React.useState(initialInterval ?? "60");
   const [pending, startTransition] = React.useTransition();
 
   function handleSave() {
     startTransition(async () => {
-      await updateStrategyChart(strategyId, { chartSymbol: symbol || null, chartInterval: interval });
+      toast.report(await updateStrategyChart(strategyId, { chartSymbol: symbol || null, chartInterval: interval }), "Chart saved");
       onOpenChange(false);
     });
   }

@@ -80,7 +80,7 @@ export function StrategyMenu({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="size-8" />}>
+      <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="size-8" aria-label="Strategy actions" />}>
         <MoreVertical className="size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">

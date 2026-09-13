@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import type { LinkableAccount } from "@/lib/strategies/accounts";
 import { setLinkedAccounts } from "@/lib/strategies/actions";
+import { useToast } from "@/components/providers/toast-provider";
 
 const PROVIDER_LABEL: Record<LinkableAccount["provider"], string> = {
   metaapi: "Bridge (MT5)",
@@ -34,6 +35,7 @@ export function LinkedAccountsDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const toast = useToast();
   // The parent only mounts this component while `linking` is set (see
   // strategy-list.tsx), so a fresh instance — and a fresh initial value
   // here — is guaranteed each time it opens; no effect needed to resync it.
@@ -51,7 +53,7 @@ export function LinkedAccountsDialog({
 
   function handleSave() {
     startTransition(async () => {
-      await setLinkedAccounts(strategyId, Array.from(selected));
+      toast.report(await setLinkedAccounts(strategyId, Array.from(selected)), "Accounts updated");
       onOpenChange(false);
     });
   }

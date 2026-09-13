@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { setMaxTriggersPerDay } from "@/lib/strategies/detail-actions";
+import { useToast } from "@/components/providers/toast-provider";
 
 export function TriggersPerDayPopover({
   strategyId,
@@ -18,6 +19,7 @@ export function TriggersPerDayPopover({
   triggersToday: number;
   canEdit: boolean;
 }) {
+  const toast = useToast();
   const [open, setOpen] = React.useState(false);
   const [value, setValue] = React.useState(maxTriggersPerDay?.toString() ?? "");
   const [pending, startTransition] = React.useTransition();
@@ -25,7 +27,7 @@ export function TriggersPerDayPopover({
   function handleSave() {
     const n = value.trim() ? Number(value) : null;
     startTransition(async () => {
-      await setMaxTriggersPerDay(strategyId, n);
+      toast.report(await setMaxTriggersPerDay(strategyId, n), "Daily cap updated");
       setOpen(false);
     });
   }

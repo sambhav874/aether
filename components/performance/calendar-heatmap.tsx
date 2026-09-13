@@ -66,6 +66,7 @@ export function CalendarHeatmap({
             variant="ghost"
             size="icon"
             className="size-7"
+            aria-label="Previous month"
             onClick={() => onMonthChange(new Date(year, month - 1, 1))}
           >
             <ChevronLeft className="size-4" />
@@ -77,6 +78,7 @@ export function CalendarHeatmap({
             variant="ghost"
             size="icon"
             className="size-7"
+            aria-label="Next month"
             onClick={() => onMonthChange(new Date(year, month + 1, 1))}
           >
             <ChevronRight className="size-4" />

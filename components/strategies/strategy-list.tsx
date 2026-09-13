@@ -27,6 +27,7 @@ import { toggleSignalsHidden } from "@/lib/strategies/detail-actions";
 import type { StrategyRow, StrategyDetail } from "@/lib/strategies/types";
 import type { LinkableAccount } from "@/lib/strategies/accounts";
 import type { StrategyPermissionLevel } from "@/lib/strategies/permissions";
+import { useToast } from "@/components/providers/toast-provider";
 
 type FilterTab = "all" | "active" | "paused" | "global";
 type ModalKind =
@@ -68,6 +69,7 @@ export function StrategyList({
   accounts: LinkableAccount[];
   permissions: Record<string, StrategyPermissionLevel>;
 }) {
+  const toast = useToast();
   const [tab, setTab] = React.useState<FilterTab>("all");
   const [search, setSearch] = React.useState("");
   const [, startTransition] = React.useTransition();
@@ -248,7 +250,7 @@ export function StrategyList({
                             onNotifications={() => setActiveModal({ kind: "notifications", strategy })}
                             onToggleSignals={() =>
                               startTransition(async () => {
-                                await toggleSignalsHidden(strategy.id);
+                                toast.report(await toggleSignalsHidden(strategy.id));
                               })
                             }
                             onShare={() => setActiveModal({ kind: "share", strategy })}
