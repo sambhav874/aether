@@ -1,5 +1,6 @@
 import "server-only";
 import type { QuoteListResult, QuoteRow } from "@/lib/market/types";
+import { unstable_cache } from "next/cache";
 import { fetchWithTimeout } from "@/lib/http";
 
 // Frankfurter serves the ECB's published reference rates — free, no key,
@@ -29,7 +30,19 @@ function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-export async function getForexRates(): Promise<QuoteListResult> {
+/**
+ * Frankfurter publishes daily reference rates, so `no-store` meant every
+ * dashboard render re-fetched a number that changes once a day. Cached by the
+ * route it was fetched for; the window is short enough that a mid-day
+ * publication still lands quickly.
+ */
+export const getForexRates = unstable_cache(
+  _getForexRates,
+  ["forex-rates"],
+  { revalidate: 900, tags: ["market-quotes"] },
+);
+
+async function _getForexRates(): Promise<QuoteListResult> {
   try {
     const end = new Date();
     const start = new Date(end.getTime() - 10 * 24 * 60 * 60 * 1000);

@@ -1,5 +1,6 @@
 import "server-only";
 import type { SearchResult, SymbolQuoteResult, UsCategory, UsListResult, UsRow } from "@/lib/market/types";
+import { unstable_cache } from "next/cache";
 import { fetchWithTimeout } from "@/lib/http";
 
 const BASE_URL = "https://finnhub.io/api/v1";
@@ -112,7 +113,18 @@ const CATEGORY_LISTS: { category: UsCategory; symbols: { symbol: string; name: s
   { category: "stocks", symbols: US_STOCKS },
 ];
 
-export async function getUsWatchlist(): Promise<UsListResult> {
+/**
+ * A fixed symbol list fanned out over Finnhub's free tier, which is rate
+ * limited — uncached, two people opening the dashboard at once could exhaust
+ * the quota between them. 60s keeps quotes live enough for a watchlist.
+ */
+export const getUsWatchlist = unstable_cache(
+  _getUsWatchlist,
+  ["us-watchlist"],
+  { revalidate: 60, tags: ["market-quotes"] },
+);
+
+async function _getUsWatchlist(): Promise<UsListResult> {
   const token = getToken();
   if (!token) return { status: "unavailable", reason: "FINNHUB_API_KEY is not set" };
 

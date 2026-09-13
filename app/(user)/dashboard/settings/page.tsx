@@ -15,6 +15,7 @@ import { GeneralForm } from "./general-form";
 import { MembersPanel } from "./members-panel";
 import { AuditLogPanel } from "./audit-log-panel";
 import { BillingFallbackPanel } from "./billing-fallback-panel";
+import { PrivacyPanel } from "./privacy-panel";
 import { requireActiveWorkspace } from "@/lib/auth/session";
 import { auth } from "@/lib/auth/server";
 import { getNotificationPreferences } from "@/lib/settings/actions";
@@ -39,6 +40,7 @@ const WORKSPACE_TABS = [
   { value: "usage", label: "Usage & credits" },
   { value: "integration", label: "Integrations" },
   { value: "audit-log", label: "Audit log" },
+  { value: "privacy", label: "Privacy & data" },
   { value: "danger", label: "Danger zone" },
 ];
 
@@ -93,6 +95,8 @@ export default async function SettingsPage({
           <MembersTab />
         ) : tab === "audit-log" ? (
           <AuditLogPanel />
+        ) : tab === "privacy" ? (
+          <PrivacyPanel />
         ) : tab === "billing" || tab === "usage" ? (
           <BillingFallbackPanel />
         ) : tab === "integration" ? (

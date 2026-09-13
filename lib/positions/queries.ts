@@ -73,20 +73,48 @@ function toPositionRow(row: Awaited<ReturnType<typeof baseQuery>>[number]): Posi
   };
 }
 
+/**
+ * Upper bound on rows any single position query will load.
+ *
+ * These feed pages that aggregate across the whole set — KPIs, the equity
+ * curve — so a page-at-a-time cursor would produce wrong totals rather than a
+ * shorter list. A generous cap plus a visible truncation flag is the honest
+ * shape: memory stays bounded, and when a workspace outgrows it the UI can
+ * say so instead of quietly charting a subset.
+ */
+export const POSITION_QUERY_LIMIT = 5_000;
+
+export type PositionPage = { rows: PositionRow[]; truncated: boolean };
+
 export async function getPositions(workspaceId: string, market: Market): Promise<PositionRow[]> {
   const rows = await baseQuery()
     .where(and(eq(positions.workspaceId, workspaceId), eq(positions.market, market)))
-    .orderBy(desc(positions.openedAt));
+    .orderBy(desc(positions.openedAt))
+    .limit(POSITION_QUERY_LIMIT);
   return rows.map(toPositionRow);
 }
 
 /** Cross-market — used by the Performance page, which aggregates across all
  * three markets (each row still carries its own `market`/currency). */
 export async function getAllPositions(workspaceId: string): Promise<PositionRow[]> {
+  return (await getAllPositionsPage(workspaceId)).rows;
+}
+
+/**
+ * Same query, but says whether it hit the cap. Callers that chart or total
+ * the result should use this and tell the user when they are looking at a
+ * subset — a truncated equity curve that looks complete is worse than one
+ * labelled as partial.
+ */
+export async function getAllPositionsPage(workspaceId: string): Promise<PositionPage> {
   const rows = await baseQuery()
     .where(eq(positions.workspaceId, workspaceId))
-    .orderBy(desc(positions.openedAt));
-  return rows.map(toPositionRow);
+    .orderBy(desc(positions.openedAt))
+    // One extra row is the cheapest way to know there are more.
+    .limit(POSITION_QUERY_LIMIT + 1);
+
+  const truncated = rows.length > POSITION_QUERY_LIMIT;
+  return { rows: rows.slice(0, POSITION_QUERY_LIMIT).map(toPositionRow), truncated };
 }
 
 const INDIAN_PROVIDERS = ["dhan", "motilal", "zerodha"] as const;
