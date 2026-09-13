@@ -17,6 +17,7 @@ import {
 } from "@/db/schema";
 import { requireActiveWorkspace } from "@/lib/auth/session";
 import { generateWebhookSecret } from "@/lib/strategies/webhook-secret";
+import { encryptSecret, readSecret } from "@/lib/crypto";
 import { exitRulesSchema, maxTriggersSchema, parseInput, riskSettingsSchema } from "@/lib/strategies/schemas";
 import { checkStrategyPermission, type StrategyPermissionLevel } from "@/lib/strategies/permissions";
 import { auth } from "@/lib/auth/server";
@@ -452,7 +453,7 @@ export async function fetchWebhookSecret(strategyId: string): Promise<{ secret: 
     .from(strategies)
     .where(and(eq(strategies.id, strategyId), eq(strategies.workspaceId, workspace.id)))
     .limit(1);
-  return { secret: row?.webhookSecret ?? null, canManage: true };
+  return { secret: row?.webhookSecret ? readSecret(row.webhookSecret) : null, canManage: true };
 }
 
 /** Generates (or rotates) the strategy's webhook secret and returns the new
@@ -470,7 +471,10 @@ export async function rotateWebhookSecret(strategyId: string): Promise<{ secret?
 
   const secret = generateWebhookSecret();
 
-  await db.update(strategies).set({ webhookSecret: secret, updatedAt: new Date() }).where(eq(strategies.id, strategyId));
+  await db
+    .update(strategies)
+    .set({ webhookSecret: encryptSecret(secret), updatedAt: new Date() })
+    .where(eq(strategies.id, strategyId));
 
   await logAudit({
     workspaceId: workspace.id,

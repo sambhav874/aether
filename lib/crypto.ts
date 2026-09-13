@@ -34,3 +34,34 @@ export function decryptCredentials(ciphertext: string): Record<string, string> {
   const decrypted = Buffer.concat([decipher.update(data), decipher.final()]);
   return JSON.parse(decrypted.toString("utf8"));
 }
+
+/**
+ * Single-value variants for secrets that must stay readable by their owner.
+ *
+ * Webhook secrets can't be hashed: the owner has to paste the value into a
+ * TradingView alert body, so it has to come back out. Encrypting still means
+ * a database read on its own is not order-placement capability, which is what
+ * plaintext storage made it.
+ */
+export function encryptSecret(plain: string): string {
+  return encryptCredentials({ v: plain });
+}
+
+export function decryptSecret(ciphertext: string): string {
+  return decryptCredentials(ciphertext).v;
+}
+
+/**
+ * Ciphertext is three base64 parts joined by ":"; a webhook secret is 48 hex
+ * characters and contains no colon. Lets reads handle both while existing
+ * rows are migrated, so the rollout needs no downtime and re-running the
+ * migration is harmless.
+ */
+export function isEncrypted(value: string): boolean {
+  return value.split(":").length === 3;
+}
+
+/** Decrypts if encrypted, passes through if not — the read path during migration. */
+export function readSecret(stored: string): string {
+  return isEncrypted(stored) ? decryptSecret(stored) : stored;
+}

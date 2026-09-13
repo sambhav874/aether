@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { strategies, signals } from "@/db/schema/strategies";
 import { parseSignalMessage, redactSecret, secretMatches } from "@/lib/webhooks/parse-signal-message";
+import { readSecret } from "@/lib/crypto";
 import { extractMessage, requiredFields } from "@/lib/webhooks/http";
 import { deriveSide, buildDispatchableSignal } from "@/lib/webhooks/build-signal";
 import { dispatchSignal } from "@/lib/strategies/execute";
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
         return;
       }
 
-      if (!secretMatches(strategy.webhookSecret, parsed.secret)) {
+      if (!secretMatches(readSecret(strategy.webhookSecret), parsed.secret)) {
         await db.insert(signals).values({
           id: crypto.randomUUID(),
           strategyId: strategy.id,

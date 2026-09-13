@@ -10,6 +10,7 @@ import { requireActiveWorkspace } from "@/lib/auth/session";
 import { dispatchSignal, type DispatchableSignal } from "@/lib/strategies/execute";
 import { logAudit } from "@/lib/audit/log";
 import { generateWebhookSecret } from "@/lib/strategies/webhook-secret";
+import { encryptSecret } from "@/lib/crypto";
 import { checkStrategyPermission, workspaceRoleStrategyLevel, meetsLevel } from "@/lib/strategies/permissions";
 
 export type SaveStrategyState = { error?: string; success?: boolean };
@@ -140,7 +141,7 @@ export async function saveStrategy(
     } else {
       const newId = crypto.randomUUID();
       await db.insert(strategies).values({
-        webhookSecret: generateWebhookSecret(),
+        webhookSecret: encryptSecret(generateWebhookSecret()),
         id: newId,
         workspaceId: workspace.id,
         createdBy: session.user.id,

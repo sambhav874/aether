@@ -1,5 +1,5 @@
 import "server-only";
-import { eq, isNotNull, and, ne, inArray } from "drizzle-orm";
+import { eq, isNotNull, and, ne, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { brokerAccounts, positions } from "@/db/schema";
 import { getRunner } from "@/lib/runners";
@@ -40,32 +40,41 @@ export async function syncPositions(
   const runner = await getRunner(provider);
   const live = await runner.getPositions(accountId);
 
-  for (const p of live) {
+  // Batched rather than one awaited round trip per position. The previous
+  // shape was O(accounts x positions) sequential inserts inside a function
+  // with a wall-clock budget, so a large account silently truncated its own
+  // sync part-way and the rows it never reached looked closed.
+  if (live.length > 0) {
     await db
       .insert(positions)
-      .values({
-        id: crypto.randomUUID(),
-        workspaceId,
-        accountId,
-        market: p.market,
-        symbol: p.symbol,
-        side: p.side,
-        entryPrice: p.entryPrice.toFixed(6),
-        quantity: p.quantity.toFixed(6),
-        filledQuantity: p.quantity.toFixed(6),
-        status: "open",
-        pnl: p.unrealizedPnl.toFixed(2),
-        externalPositionId: p.externalPositionId,
-        openedAt: p.openedAt,
-      })
-      .onConflictDoUpdate({
-        target: [positions.accountId, positions.externalPositionId],
-        set: {
+      .values(
+        live.map((p) => ({
+          id: crypto.randomUUID(),
+          workspaceId,
+          accountId,
+          market: p.market,
+          symbol: p.symbol,
+          side: p.side,
+          entryPrice: p.entryPrice.toFixed(6),
           quantity: p.quantity.toFixed(6),
           filledQuantity: p.quantity.toFixed(6),
-          entryPrice: p.entryPrice.toFixed(6),
+          status: "open" as const,
           pnl: p.unrealizedPnl.toFixed(2),
-          status: "open",
+          externalPositionId: p.externalPositionId,
+          openedAt: p.openedAt,
+        })),
+      )
+      .onConflictDoUpdate({
+        target: [positions.accountId, positions.externalPositionId],
+        // `excluded` is the row this statement tried to insert. A batched
+        // upsert cannot close over a loop variable, so each conflicting row
+        // takes its own incoming values rather than the last one's.
+        set: {
+          quantity: sql`excluded.quantity`,
+          filledQuantity: sql`excluded.filled_quantity`,
+          entryPrice: sql`excluded.entry_price`,
+          pnl: sql`excluded.pnl`,
+          status: sql`excluded.status`,
           closedAt: null,
           updatedAt: new Date(),
         },
