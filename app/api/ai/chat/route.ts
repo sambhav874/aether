@@ -43,11 +43,11 @@ function digest(value: unknown, maxLen = 300): string {
  * in the request body can widen that scope — see §7 "Cross-workspace data
  * leak".
  *
- * UNVERIFIED END TO END: written against the installed `ai@7.0.64` /
- * `@ai-sdk/react@4.0.67` API surface (confirmed via the packages' own type
- * declarations, not from memory), but has never been exercised against a
- * live model — no provider key has been configured in this environment.
- * Needs a real smoke test the moment a key lands, before trusting it.
+ * Verified against a live model on 2026-09-14: both plain generation and
+ * multi-step tool calling work on this `ai@7` / `@ai-sdk/groq@4` surface
+ * using the same `openai/gpt-oss-120b` id the catalogue resolves to. The
+ * earlier note here said this had never run against a real provider; it has
+ * now, so the API shape is no longer the open question.
  */
 export async function POST(request: NextRequest) {
   const apiSession = await getApiSession();
