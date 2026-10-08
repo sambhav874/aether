@@ -34,6 +34,9 @@ function getClient(): MetaApi {
 
 const connections = new Map<string, Promise<RpcConnection>>();
 
+// Well past a healthy sync, well short of the 300s function ceiling.
+const SYNC_TIMEOUT_SECONDS = 60;
+
 /**
  * Connected RPC connection for an account, reused across calls on a warm
  * instance. waitSynchronized runs on every call — it returns at once when the
@@ -45,6 +48,14 @@ async function getConnection(externalAccountId: string): Promise<RpcConnection> 
   if (!pending) {
     pending = (async () => {
       const account = await getClient().metatraderAccountApi.getAccount(externalAccountId);
+      // An undeployed account never synchronizes — without this check the
+      // call below waits out the SDK's 300s default and eats the whole
+      // webhook budget for every other account in the fan-out.
+      if (account.state !== "DEPLOYED") {
+        throw new Error(
+          `MetaApi account is ${account.state.toLowerCase()} — deploy it in the MetaApi dashboard before trading`,
+        );
+      }
       const connection = account.getRPCConnection();
       await connection.connect();
       return connection;
@@ -54,7 +65,7 @@ async function getConnection(externalAccountId: string): Promise<RpcConnection> 
 
   try {
     const connection = await pending;
-    await connection.waitSynchronized();
+    await connection.waitSynchronized(SYNC_TIMEOUT_SECONDS);
     return connection;
   } catch (error) {
     if (connections.get(externalAccountId) === pending) connections.delete(externalAccountId);
