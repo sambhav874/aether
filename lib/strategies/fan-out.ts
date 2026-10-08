@@ -25,7 +25,9 @@ export type FanOutResult = {
   total: number;
   /** Per-account results, in input order — what the signals row cannot hold,
    * since it aggregates every account into one string. */
-  outcomes: { accountId: string; executed: boolean; message: string }[];
+  outcomes: { accountId: string; executed: boolean; message: string; durationMs: number }[];
+  /** Wall-clock time from the first account starting to the last finishing. */
+  durationMs: number;
 };
 
 export type FanOutOptions = {
@@ -54,7 +56,8 @@ export async function fanOutToAccounts<A extends { accountId: string }>(
   options: FanOutOptions = {},
 ): Promise<FanOutResult> {
   const concurrency = Math.max(1, Math.floor(options.concurrency ?? 1));
-  const outcomes = new Array<AccountOutcome>(accounts.length);
+  const outcomes = new Array<AccountOutcome & { durationMs: number }>(accounts.length);
+  const startedAt = Date.now();
   let next = 0;
 
   async function worker(): Promise<void> {
@@ -62,12 +65,15 @@ export async function fanOutToAccounts<A extends { accountId: string }>(
       const index = next++;
       if (index >= accounts.length) return;
       const account = accounts[index];
+      const accountStartedAt = Date.now();
       try {
-        outcomes[index] = await perAccount(account);
+        const outcome = await perAccount(account);
+        outcomes[index] = { ...outcome, durationMs: Date.now() - accountStartedAt };
       } catch (error) {
         outcomes[index] = {
           executed: false,
           message: `${account.accountId}: error — ${error instanceof Error ? error.message : "unknown"}`,
+          durationMs: Date.now() - accountStartedAt,
         };
       }
     }
@@ -75,12 +81,24 @@ export async function fanOutToAccounts<A extends { accountId: string }>(
 
   await Promise.all(Array.from({ length: Math.min(concurrency, accounts.length) }, worker));
 
+  const durationMs = Date.now() - startedAt;
   const executed = outcomes.filter((o) => o.executed).length;
+  const slowestMs = outcomes.reduce((max, o) => Math.max(max, o.durationMs), 0);
+  console.info(
+    "[fan-out] %d accounts, %d executed, concurrency %d, total %dms, slowest account %dms",
+    accounts.length,
+    executed,
+    concurrency,
+    durationMs,
+    slowestMs,
+  );
+
   return {
     status: executed > 0 ? "received" : "rejected",
     resultMessage: `dispatched to ${executed}/${accounts.length} accounts: ${outcomes.map((o) => o.message).join("; ")}`,
     executed,
     total: accounts.length,
     outcomes: accounts.map((account, i) => ({ accountId: account.accountId, ...outcomes[i] })),
+    durationMs,
   };
 }

@@ -132,9 +132,9 @@ describe("fanOutToAccounts outcomes", () => {
       acc.accountId === "b" ? { executed: false, message: "b: rejected" } : ok(acc.accountId),
     );
     expect(result.outcomes).toEqual([
-      { accountId: "a", executed: true, message: "a: executed" },
-      { accountId: "b", executed: false, message: "b: rejected" },
-      { accountId: "c", executed: true, message: "c: executed" },
+      { accountId: "a", executed: true, message: "a: executed", durationMs: expect.any(Number) },
+      { accountId: "b", executed: false, message: "b: rejected", durationMs: expect.any(Number) },
+      { accountId: "c", executed: true, message: "c: executed", durationMs: expect.any(Number) },
     ]);
   });
 
@@ -143,7 +143,7 @@ describe("fanOutToAccounts outcomes", () => {
       throw new Error("broker down");
     });
     expect(result.outcomes).toEqual([
-      { accountId: "a", executed: false, message: "a: error — broker down" },
+      { accountId: "a", executed: false, message: "a: error — broker down", durationMs: expect.any(Number) },
     ]);
   });
 
@@ -157,5 +157,19 @@ describe("fanOutToAccounts outcomes", () => {
       { concurrency: 3 },
     );
     expect(result.outcomes.map((o) => o.accountId)).toEqual(["a", "b", "c"]);
+  });
+
+  it("times each account and the whole fan-out", async () => {
+    const result = await fanOutToAccounts(
+      accounts("a", "b"),
+      async (acc) => {
+        await new Promise((r) => setTimeout(r, acc.accountId === "a" ? 20 : 1));
+        return ok(acc.accountId);
+      },
+      { concurrency: 2 },
+    );
+    expect(result.outcomes[0].durationMs).toBeGreaterThanOrEqual(15);
+    // Parallel: the total tracks the slowest account, not the sum.
+    expect(result.durationMs).toBeLessThan(result.outcomes[0].durationMs + 15);
   });
 });

@@ -15,12 +15,51 @@ import type {
   Unsubscribe,
 } from "@/lib/runners/types";
 
+type MetatraderAccount = Awaited<ReturnType<MetaApi["metatraderAccountApi"]["getAccount"]>>;
+type RpcConnection = ReturnType<MetatraderAccount["getRPCConnection"]>;
+
+// One client per warm instance: each MetaApi instance opens its own
+// websocket, so building one per call paid a fresh handshake every time.
+let client: MetaApi | undefined;
+
 function getClient(): MetaApi {
+  if (client) return client;
   const token = process.env.METAAPI_TOKEN;
   if (!token) {
     throw new Error("METAAPI_TOKEN is not set — required for the MetaAPI runner.");
   }
-  return new MetaApi(token, { application: "monarch" });
+  client = new MetaApi(token, { application: "monarch" });
+  return client;
+}
+
+const connections = new Map<string, Promise<RpcConnection>>();
+
+/**
+ * Connected RPC connection for an account, reused across calls on a warm
+ * instance. waitSynchronized runs on every call — it returns at once when the
+ * connection is healthy and waits through the SDK's own reconnect when not.
+ * A failure evicts the entry so the next call starts clean.
+ */
+async function getConnection(externalAccountId: string): Promise<RpcConnection> {
+  let pending = connections.get(externalAccountId);
+  if (!pending) {
+    pending = (async () => {
+      const account = await getClient().metatraderAccountApi.getAccount(externalAccountId);
+      const connection = account.getRPCConnection();
+      await connection.connect();
+      return connection;
+    })();
+    connections.set(externalAccountId, pending);
+  }
+
+  try {
+    const connection = await pending;
+    await connection.waitSynchronized();
+    return connection;
+  } catch (error) {
+    if (connections.get(externalAccountId) === pending) connections.delete(externalAccountId);
+    throw error;
+  }
 }
 
 export const metaapiRunner: BrokerRunner = {
@@ -71,11 +110,7 @@ export const metaapiRunner: BrokerRunner = {
 
   async getBalance(accountId): Promise<Balance> {
     const { externalAccountId } = await getStoredCredentials(accountId);
-    const api = getClient();
-    const account = await api.metatraderAccountApi.getAccount(externalAccountId);
-    const connection = account.getRPCConnection();
-    await connection.connect();
-    await connection.waitSynchronized();
+    const connection = await getConnection(externalAccountId);
 
     const info = await connection.getAccountInformation();
     return {
@@ -107,11 +142,7 @@ export const metaapiRunner: BrokerRunner = {
 
   async getPositions(accountId): Promise<Position[]> {
     const { externalAccountId } = await getStoredCredentials(accountId);
-    const api = getClient();
-    const account = await api.metatraderAccountApi.getAccount(externalAccountId);
-    const connection = account.getRPCConnection();
-    await connection.connect();
-    await connection.waitSynchronized();
+    const connection = await getConnection(externalAccountId);
 
     const positions = await connection.getPositions();
     return positions.map((p: Record<string, unknown>) => ({
@@ -128,11 +159,7 @@ export const metaapiRunner: BrokerRunner = {
 
   async placeOrder(accountId, order: OrderRequest): Promise<ExecutionResult> {
     const { externalAccountId } = await getStoredCredentials(accountId);
-    const api = getClient();
-    const account = await api.metatraderAccountApi.getAccount(externalAccountId);
-    const connection = account.getRPCConnection();
-    await connection.connect();
-    await connection.waitSynchronized();
+    const connection = await getConnection(externalAccountId);
 
     try {
       const result =
@@ -165,11 +192,7 @@ export const metaapiRunner: BrokerRunner = {
 
   async closePosition(accountId, externalPositionId, quantity): Promise<ExecutionResult> {
     const { externalAccountId } = await getStoredCredentials(accountId);
-    const api = getClient();
-    const account = await api.metatraderAccountApi.getAccount(externalAccountId);
-    const connection = account.getRPCConnection();
-    await connection.connect();
-    await connection.waitSynchronized();
+    const connection = await getConnection(externalAccountId);
 
     try {
       // MetaAPI's trade connection supports a native partial close via

@@ -127,6 +127,8 @@ export async function syncPositions(
  * (Supabase pg_cron hitting /api/cron/sync-broker-accounts, or a Vercel
  * Cron) — see Phase 1 plan: "Background sync job (balance/positions poll)".
  */
+const SYNC_CONCURRENCY = Math.max(1, Number(process.env.SYNC_CONCURRENCY) || 10);
+
 export async function syncAllBrokerAccounts(): Promise<SyncSummary> {
   const accounts = await db
     .select({
@@ -141,8 +143,29 @@ export async function syncAllBrokerAccounts(): Promise<SyncSummary> {
     );
 
   const summary: SyncSummary = { total: accounts.length, synced: 0, failed: 0, errors: [] };
+  const startedAt = Date.now();
 
-  for (const account of accounts) {
+  // Sequential, this loop hit the cron's 300s ceiling at a few dozen accounts
+  // and the tail of the list silently never synced.
+  let next = 0;
+  const worker = async () => {
+    while (next < accounts.length) {
+      await syncOne(accounts[next++]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(SYNC_CONCURRENCY, accounts.length) }, worker));
+
+  console.info(
+    "[sync] %d accounts, %d synced, %d failed, concurrency %d, %dms",
+    summary.total,
+    summary.synced,
+    summary.failed,
+    SYNC_CONCURRENCY,
+    Date.now() - startedAt,
+  );
+  return summary;
+
+  async function syncOne(account: (typeof accounts)[number]): Promise<void> {
     try {
       const runner = await getRunner(account.provider);
       const balance = await runner.getBalance(account.id);
@@ -190,6 +213,4 @@ export async function syncAllBrokerAccounts(): Promise<SyncSummary> {
         .where(eq(brokerAccounts.id, account.id));
     }
   }
-
-  return summary;
 }

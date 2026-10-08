@@ -56,6 +56,10 @@ export type DispatchOutcome = {
   outcomes?: { accountId: string; executed: boolean; message: string }[];
 };
 
+// Each linked account is a separate broker login with its own rate limit, so
+// this caps our own fan-out (and DB pool use), not any one broker's budget.
+const DISPATCH_CONCURRENCY = Math.max(1, Number(process.env.DISPATCH_CONCURRENCY) || 10);
+
 type LinkedAccount = {
   accountId: string;
   provider: (typeof brokerAccounts.$inferSelect)["provider"];
@@ -222,6 +226,21 @@ export async function linkToBasket(
   basketId: string | null,
   basketName: string | null,
 ): Promise<void> {
+  const targetBasketId = await resolveBasketId(workspaceId, createdBy, basketId, basketName);
+  await linkPositionToBasket(targetBasketId, positionId);
+}
+
+async function linkPositionToBasket(basketId: string | null, positionId: string): Promise<void> {
+  if (!basketId) return;
+  await db.insert(basketPositions).values({ basketId, positionId }).onConflictDoNothing();
+}
+
+async function resolveBasketId(
+  workspaceId: string,
+  createdBy: string,
+  basketId: string | null,
+  basketName: string | null,
+): Promise<string | null> {
   let targetBasketId = basketId;
 
   if (targetBasketId) {
@@ -248,8 +267,7 @@ export async function linkToBasket(
     }
   }
 
-  if (!targetBasketId) return;
-  await db.insert(basketPositions).values({ basketId: targetBasketId, positionId }).onConflictDoNothing();
+  return targetBasketId;
 }
 
 type ResolvedRiskLimits = {
@@ -379,6 +397,13 @@ async function dispatchEntry(
     return dispatchPaperEntry(strategy, signal, linkedAccounts, side, baseQuantity, riskPercent, limitPrice);
   }
 
+  // Accounts now fill in parallel, so the first one to need a named basket
+  // creates it and the rest await that same promise — otherwise each would
+  // see "no basket yet" and insert a duplicate.
+  let basketIdPromise: Promise<string | null> | undefined;
+  const resolveSignalBasket = () =>
+    (basketIdPromise ??= resolveBasketId(strategy.workspaceId, strategy.createdBy, signal.basketId, signal.basketName));
+
   // One shared, tested loop instead of a hand-rolled one per dispatch path.
   // A throw is contained to the account that threw, message order stays the
   // input order whatever the scheduling, and concurrency is one knob.
@@ -503,11 +528,11 @@ async function dispatchEntry(
       });
 
       if (signal.basketId || signal.basketName) {
-        await linkToBasket(strategy.workspaceId, strategy.createdBy, insertedPosition.id, signal.basketId, signal.basketName);
+        await linkPositionToBasket(await resolveSignalBasket(), insertedPosition.id);
       }
 
       return { executed: true, message: `${account.accountId}: executed` };
-  });
+  }, { concurrency: DISPATCH_CONCURRENCY });
 }
 
 /**
